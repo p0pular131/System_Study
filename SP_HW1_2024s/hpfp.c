@@ -1,298 +1,172 @@
 #include "hpfp.h"
 #include <limits.h>
 #include <stdlib.h>
-#include <stdio.h> // 과제 제출시 삭제
+#include <stdio.h> // 제출할 때 삭제하기
 #define exp_size 5
 #define frac_size 10
 #define bias 15
-
-/*
-maximum num -> 65504 
-minimum num -> -65504
-*/ 
-
-int* uint_to_Binary(int input){ // input을 unsigned Binary로 변환
-    if(input<0) input = -input;
-    int size = 0, temp = input;
-    while(temp>0) {
-        temp /= 2;
-        size += 1;
-    }
-    size += 1;
-    int* arr = (int*)malloc(size*sizeof(int));
- 
-    arr[size-1] = -1;
-    int idx = 1;
-    while(input > 0){
-        arr[size-idx-1] = input%2;
-        input /= 2;
-        idx += 1; 
-    }
-    return arr;
-}
-
-int* float_to_Binary(float input){
-    int* arr = (int*)malloc(20*sizeof(int));
-    if(input<0) input = -input;
-    float temp=input;
-    for(int i=0;i<20;i++){
-        temp *= 2;
-        arr[i] = (int)temp;
-        if(temp>=1) temp -= 1; 
-    }
-    return arr;
-}
-
-hpfp Binary_to_Decimal(int* arr){
-    hpfp num = 0;
-    int size = 0, curr = 1;
-    while(arr[size]!=-1) size += 1;
-    for(int i=size-1;i>=0;i--){
-        num += curr*arr[i];
-        curr *= 2;
-    }
-    return num;
-}
-float Binary_to_float(int* arr){
-    float num = 0, curr = 0.5;
-    int size=0;
-    while(arr[size]!=-1) size += 1;
-    for(int i=0;i<size;i++){
-        num += curr*arr[i];
-        curr *= 0.5;
-    }
-    return num;
-}
+#define max_hp 65504
 
 hpfp int_converter(int input){
-    int arr[17];
-    arr[16] = -1;
-    if(input==0){ // +0으로 저장
-        for(int i=0;i<16;i++) arr[i] = 0;
-        return Binary_to_Decimal(arr);
+    hpfp value_return;
+    int result_hp = 0;
+    int result[16];
+    int E=0,exp=0;
+    // 배열 초기화
+    for(int i=0;i<16;i++) result[i] = 0;
+    // 예외처리 
+    if(input > max_hp) {
+        return (hpfp)0b0111110000000000;
     }
-    else if(input>65504) { // +inf 저장
-        arr[0] = 0;
-        for(int i=1;i<6;i++) arr[i] = 1;
-        for(int i=6;i<16;i++) arr[i] = 0;
-        return Binary_to_Decimal(arr);
-    } 
-    else if(input<-655504) { // -inf 저장
-        arr[0] = 1;
-        for(int i=1;i<6;i++) arr[i] = 1;
-        for(int i=6;i<16;i++) arr[i] = 0;
-        return Binary_to_Decimal(arr);
+    else if(input < -max_hp) {
+        return (hpfp)0b1111110000000000;
     }
-    // 이외의 경우 
-    // sign-bit 먼저 계산
-    if(input>0) arr[0] = 0;
-    else if(input<0) arr[0] = 1;
-    //주어진 수 2진수로 변환
-    int* bin = uint_to_Binary(input);
-    int size = 0;
-    int frac[10];
-    while(bin[size]!=-1) size += 1; // 이진수 사이즈 계산
-    for(int i=1;i<size;i++){
-        frac[i-1] = bin[i];
+    else if(input == 0) return (hpfp)0x0000;
+    // 음수면 부호를 배열에 저장한 후 양수로 변환
+    else {
+        if(input<0){
+            result[0] = 1;
+            input *= -1;
+        }
+        int temp = input, size = 0;
+        // 2진수의 길이를 바탕으로 E값 계산
+        while(temp>0) {
+            temp /= 2;
+            size ++;
+        }
+        int deci_to_bin[size];
+        E = size-1;
+        // 2진수 변환 후 배열에 저장
+        int idx = 0;
+        while(input>0){
+            deci_to_bin[size-idx-1] = input%2;
+            input /= 2;
+            idx++;
+        }
+        // 먼저 exp를 계산하여 2진수 변환 후 결과 배열에 저장
+        exp = E + bias;
+        for(int i=5;i>=1;i--){
+            result[i] = exp%2;
+            exp /= 2;
+        }
+        // frac을 바로 저장, 크기는 원래 2진수보다 1 작음
+        for(int i=0;i<size-1;i++) result[i+6] = deci_to_bin[i+1];
+        // 2진수를 2byte에 저장
+        for(int i=15,temp=1;i>=0;i--){
+            result_hp += temp*result[i];
+            temp *= 2;
+        }
+    } // 오버플로, 언더플로 대한 데이터 처리
+    if(result_hp > max_hp){
+        value_return = 0b0111110000000000;
     }
-    for(int i=size-1;i<frac_size;i++){
-        frac[i] = 0;
+    else if (result_hp < -max_hp) {
+        value_return = 0b1111110000000000;
     }
-    int E = size-1;
-    int exp_deci = E + bias;
-    int* exp_arr = uint_to_Binary(exp_deci);
-    int size_e = 0, zero_cnt = 0;
-    while(exp_arr[size_e]!=-1) size_e+=1;
-    for(int i=0;i<5-size_e;i++){
-        arr[i+1] = 0;
-        zero_cnt += 1;
-    }
-    for(int i=1+zero_cnt;i<6;i++){
-        arr[i] = exp_arr[i-1-zero_cnt];
-    }
-    for(int i=6;i<16;i++){
-        arr[i] = frac[i-6];
-    }
-    return Binary_to_Decimal(arr);      
+    else value_return = (hpfp)result_hp;
+    return value_return;
 }
 
 int hpfp_to_int_converter(hpfp input){
-    char* arr = hpfp_to_bits_converter(input);
-    int exp[exp_size+1], frac[frac_size+1], cnt_1 = 0, cnt_0 = 0;
-    exp[exp_size] = -1;
-    frac[frac_size] = -1;
-    for(int i=0;i<exp_size;i++){ // exp 값 저장
-        if(arr[i+1]=='1'){
-            exp[i] = 1;
-            cnt_1 += 1;
-        } 
-        else {
-            exp[i] = 0;
-            cnt_0 += 1;
-        }
-    }
-    // frac 배열 생성
-    int frac_zero = 1;
-    for(int i=0;i<frac_size;i++){
-        if(arr[i+exp_size+1]=='1'){
-            frac[i] = 1;
-            frac_zero = 0;
-        }
-        else frac[i] = 0;
-    }
-    int E = 0;
-    float M = 0;
-    if(cnt_1==5){ // +inf,inf or NaN frac이 다 0이면 전자, 아니면 후자
-        if(frac_zero==1){ // inf 
-            if(arr[0]=='1') return -2.147483648e9;
-            else return 2.147483647e9;
-        }
-        else return -2.147483648e9;
-    }
-    if(cnt_0==5){ // frac+1, E값 계산 다르게
-        E = 1-bias;
-        M = Binary_to_float(frac);
-    }
-    else { //
-        E = (int)Binary_to_Decimal(exp)-bias;
-        M = Binary_to_float(frac)+1;
-    }
-    int result = 1;
-    if(arr[0]=='1') result = -1;
-    if(E>0){
-        for(int i=0;i<E;i++) result *= 2;
-    }
-    else if(E<0){
-        for(int i=0;i<E;i++) result /= 2;
-    }
-    double result_num = result*M;
-    return (int)result_num;
+
 }
 
 hpfp float_converter(float input){
-    int arr[17];
-    arr[16] = -1;
-    if(input==0){ // +0으로 저장
-        for(int i=0;i<16;i++) arr[i] = 0;
-        return Binary_to_Decimal(arr);
+    hpfp value_return;
+    int result_hp = 0;
+    int result[16];
+    int E=0,exp=0;
+    // 초기화
+    for(int i=0;i<16;i++) result[i] = 0;
+    // 예외처리 
+    if(input > max_hp) {
+        return (hpfp)0b0111110000000000;
     }
-    else if(input>65504) { // +inf 저장
-        arr[0] = 0;
-        for(int i=1;i<6;i++) arr[i] = 1;
-        for(int i=6;i<16;i++) arr[i] = 0;
-        return Binary_to_Decimal(arr);
-    } 
-    else if(input<-655504) { // -inf 저장
-        arr[0] = 1;
-        for(int i=1;i<6;i++) arr[i] = 1;
-        for(int i=6;i<16;i++) arr[i] = 0;
-        return Binary_to_Decimal(arr);
+    else if(input < -max_hp) {
+        return (hpfp)0b1111110000000000;
     }
-    // 이외의 경우 
-    // sign-bit 먼저 계산
-    if(input>0) arr[0] = 0;
-    else if(input<0) arr[0] = 1;
-    int frac[10];
-    // 정수부, 소수부 분리
+    else if(input == 0) return (hpfp)0;
+    // 음수면 일단 부호처리 먼저 진행
+    if(input<0) {
+        result[0] = 1;
+        input *= -1;
+    }
     int input_int = (int)input;
     float input_float = input-input_int;
-    // 각각 2진수로 변환
-    int* arr_int = uint_to_Binary(input_int);
-    int* arr_float = float_to_Binary(input_float);
-    int size = 0;
-    while(arr_int[size]!=-1) size += 1;
-    int E;
-    if(size>1 || (size==1 && arr_int[0]==1)){
-        for(int i=1;i<size;i++) frac[i-1] = arr_int[i];
-        for(int i=size;i<frac_size+1;i++) frac[i-1] = arr_float[i-size];
-        E = size - 1;
+    // 소수부, 정수부를 각각 2진수로 변환하여 저장
+    int temp = input_int, size_int = 0;
+    while(temp>0) {
+        size_int ++;
+        temp/=2;
     }
-    else{
-        int idx = 0;
-        while(arr_float[idx]!=1) idx+=1;
-        idx += 1;
-        E = -idx;
-        for(int i=0;i<frac_size;i++) frac[i] = arr_float[idx+i];
+    if(input_int == 0) size_int = 1; // 0.xxx 예외처리
+    int arr_int[size_int], idx = 0;
+    while(input_int>0) {
+        arr_int[size_int-idx-1] = input_int%2;
+        input_int/=2;
+        idx++;
+    } 
+    if(input_int == 0) arr_int[0] = 0; // 0.xxx 예외처리
+    int arr_frac[10];
+    for(int i=0;i<10;i++){
+        input_float *= 2;
+        arr_frac[i] = (int)input_float;
+        if(input_float>=1) input_float -= 1;
     }
-    // for(int i=0;i<frac_size;i++) printf("%d ",frac[i]);
-    int exp = E + bias;
-    int* exp_arr = uint_to_Binary(exp);
-    int size_e = 0, zero_cnt = 0;
-    while(exp_arr[size_e]!=-1) size_e+=1;
-    for(int i=0;i<5-size_e;i++){
-        arr[i+1] = 0;
-        zero_cnt += 1;
+    // 정수부의 크기에 따라 E값을 먼저 계산 그리고 exp 계산 후 저장.
+    E = size_int - 1;
+    // 정수부가 0인 경우 소수부를 앞으로 끌어와야 E값 계산 가능
+    int pull = 0;
+    if(size_int == 1 && arr_int[0]==0){
+        E = -1;
+        while(arr_frac[pull]!=1){
+            E--;
+            pull++;
+        }
+        pull++;
     }
-    for(int i=1+zero_cnt;i<6;i++){
-        arr[i] = exp_arr[i-1-zero_cnt];
+    exp = E + bias;
+    for(int i=5;i>=1;i--){
+        result[i] = exp%2;
+        exp /= 2;
     }
-    for(int i=6;i<16;i++){
-        arr[i] = frac[i-6];
+    // frac은 정수부 먼저 넣고 나머지에 넣는 방식 
+    // round zero이므로, 뒤는 그냥 버림
+    // 단, E가 -인 경우는 다르게 frac을 생성해줘야 함.
+    if(E>=0){ // 일반적인 경우
+        int i=0;
+        for(;i<size_int-1;i++){
+            result[i+6] = arr_int[i+1];
+        }
+        int f_i = 0;
+        for(;i<10;i++){
+            result[i+6] = arr_frac[f_i];
+            f_i ++;
+        }
     }
-    return Binary_to_Decimal(arr);      
+    else { // E가 음수여서 frac을 최초 1을 만나는 시점 그 뒤부터 저장해야 함.
+        for(int i=pull;i<10;i++){
+            result[6+i-pull] = arr_frac[i];
+        }
+    }
+    // 완성된 2진수 10진수로 변환
+    for(int j=15,temp=1;j>=0;j--){
+        result_hp += result[j]*temp;
+        temp *= 2;
+    }
+    // 결과값에 따른 예외처리 진행
+    if(result_hp > max_hp){
+        value_return = 0b0111110000000000;
+    }
+    else if (result_hp < -max_hp) {
+        value_return = 0b1111110000000000;
+    }
+    else value_return = (hpfp)result_hp;
+    return value_return;
 }
 
 float hpfp_to_float_converter(hpfp input){
-    char* arr = hpfp_to_bits_converter(input);
-    int exp[exp_size+1], frac[frac_size+1], cnt_1 = 0, cnt_0 = 0;
-    exp[exp_size] = -1;
-    frac[frac_size] = -1;
-    for(int i=0;i<exp_size;i++){ // exp 값 저장
-        if(arr[i+1]=='1'){
-            exp[i] = 1;
-            cnt_1 += 1;
-        } 
-        else {
-            exp[i] = 0;
-            cnt_0 += 1;
-        }
-    }
-    // frac 배열 생성
-    int frac_zero = 1;
-    for(int i=0;i<frac_size;i++){
-        if(arr[i+exp_size+1]=='1'){
-            frac[i] = 1;
-            frac_zero = 0;
-        }
-        else frac[i] = 0;
-    }
-    int E = 0;
-    float M = 0;
-    // 직접 float 주소 할당하여 inf, NaN 표현
-    float pos_inf,neg_inf,pos_NaN,neg_NaN; 
-    *((unsigned int*)&pos_inf) = 0x7F800000;
-    *((unsigned int*)&neg_inf) = 0xFF800000;
-    *((unsigned int*)&pos_NaN) = 0x7F810000;
-    *((unsigned int*)&neg_NaN) = 0x7F810000;
-    if(cnt_1==5){ 
-        if(frac_zero==1){ 
-            if(arr[0]=='1') return  neg_inf;
-            else return pos_inf;
-        }
-        else {
-            if(arr[0]=='1') return neg_NaN;
-            else return pos_NaN;
-        }
-    }
-    if(cnt_0==5){ // frac+1, E값 계산 다르게
-        E = 1-bias;
-        M = Binary_to_float(frac);
-    }
-    else { //
-        E = (int)Binary_to_Decimal(exp)-bias;
-        M = Binary_to_float(frac)+1;
-    }
-    float result = 1;
-    if(E>0){
-        for(int i=0;i<E;i++) result *= 2;
-    }
-    else if(E<0){
-        for(int i=0;i<-E;i++) result /= 2;
-    }
-    printf("M : %f, E : %f\n", M, result);
-    float result_num = result*M;
-    if(arr[0]=='1') result_num *= -1;
-    return result_num;    
+    
 }
 
 hpfp addition_function(hpfp a, hpfp b){
@@ -309,7 +183,6 @@ hpfp addition_function(hpfp a, hpfp b){
     else frac_a = ((a & 0x03FF) | 0x0400);
     if(exp_b==0) frac_b = (b & 0x03FF);
     else frac_b = ((b & 0x03FF) | 0x0400);
-    // printf("frac_a, frac_b : %d %d\n", frac_a, frac_b);
     /*
         a와 b의 값에 따라서 예외처리 진행
         +inf -> 0x7C00
@@ -454,7 +327,6 @@ hpfp multiply_function(hpfp a, hpfp b){
     return ((S << 15) & 0x8000) | ((exp << 10) & 0x7c00) | (((frac >> 10) + round) & 0x03FF);
 }
 
-
 char* comparison_function(hpfp a, hpfp b){
     int S=0,exp=0,frac=0;
     int S_a, S_b, exp_a, exp_b, frac_a, frac_b, is_it_pos=1;
@@ -523,42 +395,4 @@ char* hpfp_to_bits_converter(hpfp result){
 }
 
 char* hpfp_flipper(char* input){
-    hpfp input_hp = 0;
-    char is_it_pos = input[0];
-    char* result_arr = (char*)malloc(sizeof(char) * 16);
-    for(int i=15, curr = 1;i>=0;i--){
-        input_hp += (input[i] - '0')*curr;
-        curr *= 2;
-    }
-    float hp = hpfp_to_float_converter(input_hp);
-    double hp_num = hp;
-    printf("origin num : %f\n",hp_num);
-    if(input[0]=='1') hp_num *= -1;
-    int cnt = 0; // 소수점 아래 자리수 계산
-    while(hp_num != (int)hp_num){
-        hp_num *= 10;
-        cnt ++;
-    }
-    int temp = (int)hp_num, res, n=0, length = 0;
-    printf("after int %d\n",temp);
-    while(temp != 0){
-        res = temp % 10;
-        n = n*10 + res;
-        temp /= 10;
-        length ++;
-    }
-    double flipped = (double)n;
-    cnt = length - cnt;
-    printf("after flipped : %f\n",flipped);
-    while(cnt!=0){
-        flipped /= 10;
-        cnt --;
-    }
-    printf("after division : %f\n",flipped);
-    if(is_it_pos=='1') flipped *= -1;
-    float ans_flipped = (float)flipped;
-    hpfp flped_result = float_converter(ans_flipped);
-    printf("hpfp : %d\n",flped_result);
-    result_arr = hpfp_to_bits_converter(flped_result);
-    return result_arr;
 }
