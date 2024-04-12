@@ -433,8 +433,7 @@ hpfp multiply_function(hpfp a, hpfp b){
             frac = frac_a * frac_b;
             while(frac&0x200000) {
                 exp++;
-                // frac = right_shifting_even(frac,1);
-                frac >>= 1;
+                frac = right_shifting_even(frac,1);
             }
             int size=0, temp=frac;
             while(temp>0){
