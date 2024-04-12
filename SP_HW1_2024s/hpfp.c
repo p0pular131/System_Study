@@ -1,11 +1,32 @@
 #include "hpfp.h"
 #include <limits.h>
 #include <stdlib.h>
-#include <stdio.h> // 제출할 때 삭제하기
-#define exp_size 5
-#define frac_size 10
 #define bias 15
 #define max_hp 65504
+#define TMax 2.147483647e9
+
+int right_shifting_even(int orin, int shifting){
+    // bit-shifting with round-to-even 진행하는 함수
+    int result = 0, for_bit = 0, front_num = 0;
+    for(int i=0,temp=1;i<=shifting-1;i++){ // 비트 연산을 수행하기 위한 기준 수 생성 (ex : shifting = 3 -> 0b111)
+        for_bit += temp;
+        temp *= 2;
+    }
+    if((orin & for_bit) == (1 << (shifting-1))) { // 딱 중앙에 있어서 짝수로 반올림 해야하는 경우
+    // 바로 앞의 수가 1이면 1더해주고, 아니면 그냥 진행
+        result = orin >> (shifting);
+        if(result&1 == 1) result += 1;
+    }
+    else if((orin & for_bit) > (1 << (shifting-1))){ // 0.5보다 커서 업 하는 경우
+        result = (orin >> (shifting)) + 1;
+    }
+    else { // 0.5보다 작아서 down 하는 경우
+        result = orin >> (shifting);
+    }
+
+    return result;
+}
+
 
 hpfp int_converter(int input){
     hpfp value_return;
@@ -68,7 +89,52 @@ hpfp int_converter(int input){
 }
 
 int hpfp_to_int_converter(hpfp input){
-
+    // output overflow 고려 안해도 됨. 
+    unsigned short S=0,exp=0,frac=0,E=0;
+    int result = 1;
+    double M = 0;
+    // bit 연산을 통해 부호, 진수, 가수를 가져옴
+    S = (input & 0x8000) >> 15;
+    exp = (input & 0x7C00) >> 10;
+    // exp가 0일 경우에는 따로 예외처리를 해서 M값 구할 때 앞에 1붙일 예정정
+    frac = input & 0x03FF;
+    // inf, NaN 예외처리 진행
+    if(exp==0b11111){
+        if(frac==0){
+            if(S == 0) return TMax;
+            else return -TMax;
+        }
+        else return -TMax;
+    }
+    // exp 바탕으로 E 계산
+    if(exp == 0) E = 1-bias;
+    else E = exp - bias;
+    // M계산 -> frac을 2진수로 배열에 저장하여 따로 계산해야 함
+    int bin_frac[10];
+    // frac 배열 0으로 초기화 
+    for(int i=0;i<10;i++) bin_frac[i] = 0;
+    for(int i=0;frac>0;i++){
+        bin_frac[9-i] = frac%2;
+        frac /= 2;
+    }
+    double temp = 0.5;
+    for(int i=0;i<10;i++){
+        M += temp*bin_frac[i];
+        temp *= 0.5;
+    }
+    if(exp != 0) M += 1; // exp!=0이면 M은 1.xxxx
+    // 먼저 2^E 계산
+    if(E>0){
+        for(int i=0;i<E;i++) result *= 2;
+    }
+    else if(E<0) {
+        for(int i=0;i<-E;i++) result /= 2;
+    }
+    // 부호 붙여주고
+    if(S==1) result *= -1;
+    // M까지 곱해준 후 round_to_zero이므로 int로 변환 후 return
+    double value_return = result*M;
+    return (int)value_return;
 }
 
 hpfp float_converter(float input){
@@ -166,7 +232,60 @@ hpfp float_converter(float input){
 }
 
 float hpfp_to_float_converter(hpfp input){
-    
+    unsigned short S=0,exp=0,frac=0,E=0;
+    double result = 1;
+    double M = 0;
+    // 예외 처리 위한 변수들 선언
+    float pos_inf,neg_inf,pos_NaN,neg_NaN; 
+    *((unsigned int*)&pos_inf) = 0x7F800000;
+    *((unsigned int*)&neg_inf) = 0xFF800000;
+    *((unsigned int*)&pos_NaN) = 0x7F810000;
+    *((unsigned int*)&neg_NaN) = 0x7F810000;
+    // bit 연산을 통해 부호, 진수, 가수를 가져옴
+    S = (input & 0x8000) >> 15;
+    exp = (input & 0x7C00) >> 10;
+    // exp가 0일 경우에는 따로 예외처리를 해서 M값 구할 때 앞에 1붙일 예정정
+    frac = input & 0x03FF;
+    // 예외처리 진행
+    if(exp==0b11111){
+        if(frac==0){
+            if(S == 0) return pos_inf;
+            else return -neg_inf;
+        }
+        else{
+            if(S == 0) return pos_NaN;
+            else return neg_NaN;
+        }
+    }
+    // E값 계산
+    if(exp == 0) E = 1-bias;
+    else E = exp - bias;
+    // frac 이진배열 변환 후 M값 계산
+    int bin_frac[10];
+    // frac 배열 0으로 초기화 
+    for(int i=0;i<10;i++) bin_frac[i] = 0;
+    for(int i=0;frac>0;i++){
+        bin_frac[9-i] = frac%2;
+        frac /= 2;
+    }
+    double temp = 0.5;
+    for(int i=0;i<10;i++){
+        M += temp*bin_frac[i];
+        temp *= 0.5;
+    }
+    if(exp != 0) M += 1; // exp!=0이면 M은 1.xxxx
+    // 먼저 2^E 계산
+    if(E>0){
+        for(int i=0;i<E;i++) result *= 2;
+    }
+    else if(E<0) {
+        for(int i=0;i<-E;i++) result /= 2;
+    }
+    // 부호 붙여주고
+    if(S==1) result *= -1;
+    // M까지 곱해준 후 round_to_zero이므로 float로 변환 후 return
+    double value_return = result*M;
+    return (float)value_return;
 }
 
 hpfp addition_function(hpfp a, hpfp b){
@@ -211,11 +330,11 @@ hpfp addition_function(hpfp a, hpfp b){
         else { // b -> normal value
         // 먼저 지수 맞춰줌
             if(exp_a > exp_b) {
-                frac_b = frac_b >> (exp_a-exp_b);
+                frac_b = right_shifting_even(frac_b,exp_a-exp_b);
                 exp_b = exp_a;
             }
             else if(exp_a < exp_b) {
-                frac_a = frac_a >> (exp_b-exp_a);
+                frac_a = right_shifting_even(frac_a,exp_b-exp_a);
                 exp_a = exp_b;
             }
         // 덧셈 진행
@@ -225,7 +344,7 @@ hpfp addition_function(hpfp a, hpfp b){
                 frac = frac_a + frac_b;
                 if(frac & 0x0800) { // 자리수 맞춰줌
                     exp++;
-                    frac = frac >> 1;
+                    frac = right_shifting_even(frac,1);
                 }
 
             }
@@ -260,14 +379,14 @@ hpfp addition_function(hpfp a, hpfp b){
 
 hpfp multiply_function(hpfp a, hpfp b){
     hpfp result;
-    int S=0,exp=0,frac=0;
-    int S_a, S_b, exp_a, exp_b, frac_a, frac_b, round = 0;
+    int S=0,exp=0,frac=0,E=0;
+    int S_a, S_b, E_a, E_b, exp_a, exp_b, frac_a, frac_b, round = 0;
     // 비트 연산으로 s, exp, frac 가져오기
     S_a = (a & 0x8000) >> 15;
     S_b = (b & 0x8000) >> 15;
     exp_a = (a & 0x7C00) >> 10;
     exp_b = (b & 0x7C00) >> 10;
-    // frac가져올 때 exp가 0이 아니면 1 붙여줌
+    // frac가져올 때 exp가 0이 아니면 1 붙여줌. frac에 있는 값은 사실상 M을 의미하게 됨.
     if(exp_a==0) frac_a = (a & 0x03FF);
     else frac_a = ((a & 0x03FF) | 0x0400);
     if(exp_b==0) frac_b = (b & 0x03FF);
@@ -312,19 +431,24 @@ hpfp multiply_function(hpfp a, hpfp b){
             S = S_a ^ S_b;
             exp = exp_a + exp_b - bias;
             frac = frac_a * frac_b;
-            if(frac & 0x200000){ // 곱한 수가 자리수를 넘으면 shifting
-                exp ++;
-                frac = frac >> 1;
+            while(frac&0x200000) {
+                exp++;
+                // frac = right_shifting_even(frac,1);
+                frac >>= 1;
             }
-            if((frac & 0x03FF) > 0x0200) round ++; // 반올림  
-            if(exp>=31){ // 오버플로 발생
-                if(S == 0) return 0x7C00;
-                else return 0xFC00;
+            int size=0, temp=frac;
+            while(temp>0){
+                temp /= 2;
+                size ++;
             }
+            frac = right_shifting_even(frac,size-11);
         }
     }
-    // frac을 소수점 아래 5자리까지해서 계산했으므로, 10자리만큼 shifting 해줘야 함
-    return ((S << 15) & 0x8000) | ((exp << 10) & 0x7c00) | (((frac >> 10) + round) & 0x03FF);
+    if(exp>=31){ // 오버플로 발생
+        if(S == 0) return 0x7C00;
+        else return 0xFC00;
+    }
+    return ((S << 15) & 0x8000) | ((exp << 10) & 0x7c00) | (frac & 0x03FF);
 }
 
 char* comparison_function(hpfp a, hpfp b){
@@ -395,4 +519,52 @@ char* hpfp_to_bits_converter(hpfp result){
 }
 
 char* hpfp_flipper(char* input){
+    hpfp input_hp = 0;
+    char is_it_pos = input[0];
+    char* result_arr = (char*)malloc(sizeof(char)*16);
+    // 문자열로 구성된 bit형식을 unsigned short로 변환
+    for(int i=15,curr=1;i>=0;i--){
+        input_hp += (input[i]-'0')*curr;
+        curr *= 2;
+    }
+    // 원래 실수로 복원하여 hp에 저장
+    float hp = hpfp_to_float_converter(input_hp);
+    double hp_num = hp;
+    // 계산 편의 위하여 양수로 변환
+    if(input[0]=='1') hp_num *= -1;
+    /*
+    1. 현재 소수점 자리수를 계산하여 cnt에 저장
+    2. 실수를 int형태로 바꾼 후 flip 진행
+    3. cnt값과 원래 숫자의 길이를 바탕으로 소수점 결정
+    4. 해당 수만큼 나눠줘서 다시 실수형으로 변환
+    */ 
+    int cnt = 0; 
+    while(hp_num != (int)hp_num){
+        hp_num *= 10;
+        cnt ++;
+    }
+    // flip 진행 -> 정수형으로 저장
+    int temp = (int)hp_num, res, n=0, length = 0;
+    while(temp != 0){
+        res = temp % 10;
+        n = n*10 + res;
+        temp /= 10;
+        length ++;
+    }
+    // 정수형 -> 실수형으로 변환
+    double flipped = (double)n;
+    // cnt, length 값 바탕으로 소수점 자리수 결정
+    if(cnt != 0) cnt = length - cnt;
+    while(cnt!=0){
+        flipped /= 10;
+        cnt --;
+    }
+    // 부호 복귀
+    if(is_it_pos=='1') flipped *= -1;
+    float ans_flipped = (float)flipped;
+    // hpfp -> bit 형태로 최종 결과 return
+    hpfp flped_result = float_converter(ans_flipped);
+    result_arr = hpfp_to_bits_converter(flped_result);
+    return result_arr;
+
 }
