@@ -1,0 +1,15 @@
+1. 인의예지 접속 : $ ssh swji.skku.edu -p 1398 -l s20310830
+2. make_dir project_n
+
+(local terminal에서 아래 진행)
+3. sudo scp -P 1398 riscv-sim riscv-sim.py  s20310830@swji.skku.edu:~/project_n
+(서버 project_n 폴더에 파일들 잘 전송 됐는지 확인)
+
+4. chmod +x riscv-sim
+
+(cd ~해서 밖으로 나오고 제출 진행)
+5. ~swe3005/bin/submit projn project_n 
+
+(제출 잘 됐는지 확인)
+6. ~swe3005/bin/check-submission proj0
+
