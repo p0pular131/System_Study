@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-
+from math import pow
 '''
 opcode 기준 정리
 0110111 -> lui (U)
@@ -96,7 +96,7 @@ IR = {
 FUNCT_3 = [0,1,2,3,4,5,6,7]
 regi_info = [0 for _ in range(32)]
 disas_list = []
-
+memory = [0.1 for _ in range(65536)] # 0x10000000 ~ 0x1000FFFF
 N = int(sys.argv[-1])
 
 class RISCV :
@@ -177,6 +177,17 @@ def bit_2compliment(input) :
 # disassemble 한 정보들은 클래스 형태로 리스트에 저장
 def main() :
     path = sys.argv[1]
+    if(len(sys.argv)==4) :
+        data_path = sys.argv[2]
+        with open(data_path,'rb') as data_file : 
+            mem = data_file.read()
+            for i in range(len(mem)//4) :
+                mem_bytes = mem[4*i:4*(i+1)]
+                curr_bin_num = make_bit(mem_bytes)
+                memory[4*i+0] = ((curr_bin_num & 0xFF000000) >> 24) & 0xFF
+                memory[4*i+1] = (curr_bin_num & 0x00FF0000) >> 16
+                memory[4*i+2] = (curr_bin_num & 0x0000FF00) >> 8
+                memory[4*i+3] = curr_bin_num & 0x000000FF
     with open(path,'rb') as file :
         data = file.read()
         # 4개 단위씩 끊어서 진행
@@ -199,7 +210,7 @@ def main() :
                     curr.rd = (curr.bin_num >> 7) & 0x1F
                     curr.imm = ((curr.bin_num >> 12) & 0xFFFFF) << 12
                     curr.imm = bit_2compliment(curr.imm)
-                    print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, {curr.imm}")
+                    # print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, {curr.imm}")
                 elif(curr.func == "jal") :
                     curr.rd = (curr.bin_num >> 7) & 0x1F
                     curr.imm = (curr.bin_num & 0x7FE00000) >> 21
@@ -208,7 +219,7 @@ def main() :
                     curr.imm += (curr.bin_num & 0xFF000)
                     curr.imm += (curr.bin_num & 0x80000000) >> 11
                     curr.imm = bit_convert_32to21(curr.imm)
-                    print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, {curr.imm}")
+                    # print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, {curr.imm}")
             else :
                 curr.funct3 = curr.bin_num & 0x707F
 
@@ -228,7 +239,7 @@ def main() :
                     curr.imm += (curr.bin_num & 0x80) << 4
                     curr.imm += (curr.bin_num & 0x80000000) >> 19
                     curr.imm = bit_convert_32to13(curr.imm)
-                    print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rs1}, x{curr.rs2}, {curr.imm}")
+                    # print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rs1}, x{curr.rs2}, {curr.imm}")
 
                 elif(curr.format=="I") :
                     curr.func = I[curr.funct3]
@@ -243,10 +254,10 @@ def main() :
                     curr.imm = bit_convert_32to12(curr.imm)
                     curr.rs1 = (curr.bin_num >> 15) & 0x1F
                     curr.rd = (curr.bin_num >> 7) & 0x1F
-                    if(curr.op_code == 0b11 or curr.func == "jalr") :
-                        print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, {curr.imm}(x{curr.rs1})")
-                    else :
-                        print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, x{curr.rs1}, {curr.imm}")
+                    # if(curr.op_code == 0b11 or curr.func == "jalr") :
+                    #     print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, {curr.imm}(x{curr.rs1})")
+                    # else :
+                    #     print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, x{curr.rs1}, {curr.imm}")
 
                 elif(curr.format=="S") :
                     curr.func = S[curr.funct3]
@@ -255,7 +266,7 @@ def main() :
                     curr.imm = (curr.bin_num & 0xF80) >> 7
                     curr.imm += (curr.bin_num & 0xFE000000) >> 20
                     curr.imm = bit_convert_32to12(curr.imm)
-                    print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rs2}, {curr.imm}(x{curr.rs1})")
+                    # print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rs2}, {curr.imm}(x{curr.rs1})")
 
                 elif(curr.format=="R") :
                     curr.func = R[curr.funct3]
@@ -269,12 +280,11 @@ def main() :
                     curr.rs2 = (curr.bin_num >> 20) & 0x1F
                     curr.rs1 = (curr.bin_num >> 15) & 0x1F
                     curr.rd = (curr.bin_num >> 7) & 0x1F
-                    if(curr.func[-1]=='i') :
-                        print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, x{curr.rs1}, {curr.rs2}")
-                    else :
-                        print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, x{curr.rs1}, x{curr.rs2}")
+                    # if(curr.func[-1]=='i') :
+                    #     print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, x{curr.rs1}, {curr.rs2}")
+                    # else :
+                    #     print(f"inst {i}: {curr.inst_num} {curr.func} x{curr.rd}, x{curr.rs1}, x{curr.rs2}")
             disas_list.append(curr)
-
 
 def int_to_hex_32bit(n):
     # 변환을 위해 32비트 마스크 적용
@@ -288,8 +298,6 @@ def int_to_hex_32bit(n):
         print('0',end="")
     print(list_hex[2:])
 
-
-
 def pregi() :
     for i in range(32) :
         print(f"x{i}: ",end="")
@@ -297,8 +305,10 @@ def pregi() :
 
 if __name__ == "__main__" :
     main()
-    for i in range(len(disas_list)) :
-        if i >= N :
+    i, cnt = 0, 0
+    while(True) :
+        if i >= len(disas_list) or cnt >= N :
+            print("last inst : ",i-1)
             break
         inst = disas_list[i]
         # 입력 받은 N만큼만 연산 진행
@@ -328,20 +338,25 @@ if __name__ == "__main__" :
             regi_info[inst.rd] = regi_info[inst.rs1] << inst.rs2
         elif inst.func == "srli" :
             mask = 0xFFFFFFFF
-            
-            regi_info[inst.rd] = regi_info[inst.rs1] >> inst.rs2
+            regi_info[inst.rd] = (regi_info[inst.rs1] & mask) >> inst.rs2
         elif inst.func == "srai" :
-            regi_info[inst.rd] = regi_info[inst.rs1] >> inst.rs2
+            if(regi_info[inst.rs1] & 0x80000000 == 0x80000000) :
+                regi_info[inst.rd] = (regi_info[inst.rs1] >> inst.rs2) | (0xFFFFFFFF << (32 - inst.rs2))
+            else :
+                regi_info[inst.rd] = (regi_info[inst.rs1] >> inst.rs2)
         elif inst.func == "sll" : 
-            regi_info[inst.rs2] = regi_info[inst.rs2] & 0b11111
-            regi_info[inst.rd] = regi_info[inst.rs1] << regi_info[inst.rs2]
+            cur = regi_info[inst.rs2] & 0b11111
+            regi_info[inst.rd] = regi_info[inst.rs1] << cur
         elif inst.func == "srl" : # logical은 unsigned shift
             mask = 0xFFFFFFFF
-            regi_info[inst.rs2] = regi_info[inst.rs2] & 0b11111
-            regi_info[inst.rd] = (regi_info[inst.rs1] & mask) >> regi_info[inst.rs2]
+            cur = regi_info[inst.rs2] & 0b11111
+            regi_info[inst.rd] = (regi_info[inst.rs1] & mask) >> cur
         elif inst.func == "sra" :
-            regi_info[inst.rs2] = regi_info[inst.rs2] & 0b11111
-            regi_info[inst.rd] = regi_info[inst.rs1] >> regi_info[inst.rs2]
+            cur = regi_info[inst.rs2] & 0b11111
+            if(regi_info[inst.rs1] & 0x80000000 == 0x80000000) :
+                regi_info[inst.rd] = (regi_info[inst.rs1] >> cur) | (0xFFFFFFFF << cur)
+            else :
+                regi_info[inst.rd] = regi_info[inst.rs1] >> cur
         elif inst.func == "slti" :
             if(regi_info[inst.rs1]<inst.imm) :
                 regi_info[inst.rd] = 1
@@ -353,22 +368,57 @@ if __name__ == "__main__" :
             else :
                 regi_info[inst.rd] = 0
         elif inst.func == "lui" :
-            regi_info[inst.rd] += inst.imm
-        # elif inst.func == "auipc" :
-
-        # elif inst.func == "jalr" :
-
-        # elif inst.func == "beq" :
-
-        # elif inst.func == "bne" :
-
-        # elif inst.func == "blt" :
-
-        # elif inst.func == "bge" :
-
-        # elif inst.func == "lw" :
-
-        # elif inst.func == "sw" :
-
+            regi_info[inst.rd] = inst.imm
+        elif inst.func == "auipc" :
+            regi_info[inst.rd] = inst.imm + i*4 
+        elif inst.func == "jal" :
+            regi_info[inst.rd] = (i+1)*4
+            i = i + int(inst.imm/4) - 1
+        elif inst.func == "jalr" :
+            temp = i
+            i = int((regi_info[inst.rs1] + inst.imm)/4) - 1
+            regi_info[inst.rd] = (temp+1)*4
+        elif inst.func == "beq" :
+            if(regi_info[inst.rs1] == regi_info[inst.rs2]) :
+                i = i + int(inst.imm/4) - 1
+        elif inst.func == "bne" :
+            if(regi_info[inst.rs1] != regi_info[inst.rs2]) :
+                i = i + int(inst.imm/4) - 1
+        elif inst.func == "blt" :
+            num_1 = bit_2compliment(regi_info[inst.rs1])
+            num_2 = bit_2compliment(regi_info[inst.rs2])
+            if(num_1 < num_2) :
+                i = i + int(inst.imm/4) - 1
+        elif inst.func == "bge" :
+            num_1 = bit_2compliment(regi_info[inst.rs1])
+            num_2 = bit_2compliment(regi_info[inst.rs2])
+            if(num_1 >= num_2) :
+                i = i + int(inst.imm/4) - 1
+        elif inst.func == "lw" : 
+            if(regi_info[inst.rs1] + inst.imm == 0x20000000) :
+                input_num = int(input())
+                regi_info[inst.rd] = input_num
+            else :
+                idx = int(((regi_info[inst.rs1]+inst.imm)-0x10000000))
+                regi_info[inst.rd] = 0
+                for n in range(4) :
+                    if(memory[idx+n] == 0.1) :
+                        regi_info[inst.rd] += int(0xF * pow(16,7-2*n))
+                        regi_info[inst.rd] += int(0xF * pow(16,6-2*n))
+                    else :
+                        regi_info[inst.rd] += int(memory[idx+n]//16 * pow(16,7-2*n))
+                        regi_info[inst.rd] += int(memory[idx+n]%16 * pow(16,6-2*n))
+        elif inst.func == "sw" :
+            if(regi_info[inst.rs1] + inst.imm == 0x20000000) :
+                print(chr(regi_info[inst.rs2]),end="")
+            else :
+                mask = 0xFFFFFFFF
+                idx = int(((regi_info[inst.rs1]+inst.imm)-0x10000000))
+                memory[idx+2] = (regi_info[inst.rs2] >> 8) & 0xFF
+                memory[idx+3] = (regi_info[inst.rs2]) & 0xFF
+                memory[idx+0] = (regi_info[inst.rs2] >> 24) & 0xFF
+                memory[idx+1] = (regi_info[inst.rs2] >> 16) & 0xFF
         regi_info[0] = 0
+        i += 1
+        cnt += 1
     pregi()
