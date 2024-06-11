@@ -7,7 +7,7 @@
 #include <iomanip>
 #include <vector>
 #include <list>
-#include <unordered_map>
+#include <map>
 
 cache_sim_t::cache_sim_t(size_t _sets, size_t _ways, size_t _linesz, const char* _name)
 : sets(_sets), ways(_ways), linesz(_linesz), name(_name), log(false)
@@ -59,8 +59,8 @@ void cache_sim_t::init()
   write_misses = 0;
   bytes_written = 0;
   writebacks = 0;
-  lru_list.resize(sets+256);
-  tags_map.resize(sets+256);
+  lru_list.resize(256);
+  tags_map.resize(256);
   miss_handler = NULL;
 }
 
@@ -108,29 +108,28 @@ uint64_t* cache_sim_t::check_tag(uint64_t addr) {
   size_t idx = (addr >> idx_shift) & (sets - 1);
   size_t tag = (addr >> idx_shift) | VALID;
 
-  auto& set_tags = tags_map[idx];
-  auto it = set_tags.find(tag);
-  if (it != set_tags.end()) {
+  auto it = tags_map[idx].find(tag);
+  // matching되는 tag가 존재하는 경우
+  if (it != tags_map[idx].end()) {
+  // 해당 idx 요소를 lru_list의 맨 앞으로 보냄. 그리고 그 tag의 포인터 반환
     lru_list[idx].splice(lru_list[idx].begin(), lru_list[idx], it->second);
     return &(*it->second);
   }
+  // 존재하는거 없으면 NULL
   return NULL;
 }
 
 uint64_t cache_sim_t::victimize(uint64_t addr) {
   size_t idx = (addr >> idx_shift) & (sets - 1);
-  auto& set_list = lru_list[idx];
-  auto& set_tags = tags_map[idx];
   uint64_t victim = 0;
-
-  if (set_list.size() == ways) {
-    victim = set_list.back();
-    set_tags.erase(victim >> idx_shift);
-    set_list.pop_back();
+  // set 꽉 찼으면
+  if (lru_list[idx].size() == ways) {
+    victim = lru_list[idx].back();
+    tags_map[idx].erase(victim >> idx_shift);
+    lru_list[idx].pop_back();
   }
-
-  set_list.push_front((addr >> idx_shift) | VALID);
-  set_tags[(addr >> idx_shift) | VALID] = set_list.begin();
+  lru_list[idx].push_front((addr >> idx_shift) | VALID);
+  tags_map[idx][(addr >> idx_shift) | VALID] = lru_list[idx].begin();
   return victim;
 }
 

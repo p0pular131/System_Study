@@ -10,17 +10,7 @@
 #include <cstdint>
 #include <vector>
 #include <list>
-#include <unordered_map>
-
-class lfsr_t
-{
- public:
-  lfsr_t() : reg(1) {}
-  lfsr_t(const lfsr_t& lfsr) : reg(lfsr.reg) {}
-  uint32_t next() { return reg = (reg>>1)^(-(reg&1) & 0xd0000001); }
- private:
-  uint32_t reg;
-};
+#include <map>
 
 class cache_sim_t
 {
@@ -38,7 +28,7 @@ class cache_sim_t
 
  protected:
   std::vector<std::list<uint64_t>> lru_list;
-  std::vector<std::unordered_map<uint64_t, std::list<uint64_t>::iterator>> tags_map;
+  std::vector<std::map<uint64_t, std::list<uint64_t>::iterator>> tags_map;
 
   static const uint64_t VALID = 1ULL << 63;
   static const uint64_t DIRTY = 1ULL << 62;
@@ -46,7 +36,6 @@ class cache_sim_t
   virtual uint64_t* check_tag(uint64_t addr);
   virtual uint64_t victimize(uint64_t addr);
 
-  lfsr_t lfsr;
   cache_sim_t* miss_handler;
 
   size_t sets;
