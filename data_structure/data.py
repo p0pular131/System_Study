@@ -38,7 +38,7 @@ with open('songs.txt', 'w', encoding='utf-8') as f:
                 title = a_tag.text.strip()
                 genre = 'kayo'
                 artist = tr.select_one('td.info > a.artist.ellipsis').text
-                str_1 = genre + ", " + title + ", " + artist + "\n"
+                str_1 = genre + ", " + title + ", " + artist + ", " + str(year)[:4] + "\n"
                 if (str_1[5:8] == "19금") :
                     continue
                 songs.append(str_1)
@@ -51,7 +51,7 @@ with open('songs.txt', 'w', encoding='utf-8') as f:
                 title = a_tag.text.strip()
                 genre = 'pop'
                 artist = tr.select_one('td.info > a.artist.ellipsis').text
-                str_1 = genre + ", " + title + ", " + artist + "\n"
+                str_1 = genre + ", " + title + ", " + artist + ", " + str(year)[:4] + "\n"
                 if (str_1[5:8] == "19금") :
                     continue
                 songs.append(str_1)
@@ -64,7 +64,7 @@ with open('songs.txt', 'w', encoding='utf-8') as f:
                 title = a_tag.text.strip()
                 genre = 'jpop'
                 artist = tr.select_one('td.info > a.artist.ellipsis').text
-                str_1 = genre + ", " + title + ", " + artist + "\n"
+                str_1 = genre + ", " + title + ", " + artist + ", " + str(year)[:4] + "\n"
                 if (str_1[5:8] == "19금") :
                     continue
                 songs.append(str_1)
@@ -77,7 +77,7 @@ with open('songs.txt', 'w', encoding='utf-8') as f:
                 title = a_tag.text.strip()
                 genre = 'edm'
                 artist = tr.select_one('td.info > a.artist.ellipsis').text
-                str_1 = genre + ", " + title + ", " + artist + "\n"
+                str_1 = genre + ", " + title + ", " + artist + ", " + str(year)[:4] + "\n"
                 if (str_1[5:8] == "19금") :
                     continue
                 songs.append(str_1)
