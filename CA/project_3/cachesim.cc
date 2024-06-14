@@ -59,8 +59,9 @@ void cache_sim_t::init()
   write_misses = 0;
   bytes_written = 0;
   writebacks = 0;
-  lru_list.resize(256);
-  tags_map.resize(256);
+  // set의 max size인 256으로 list, map 크기 설정
+  lru_list.resize(sets);
+  tags_map.resize(sets);
   miss_handler = NULL;
 }
 
@@ -111,23 +112,24 @@ uint64_t* cache_sim_t::check_tag(uint64_t addr) {
   auto it = tags_map[idx].find(tag);
   // matching되는 tag가 존재하는 경우
   if (it != tags_map[idx].end()) {
-  // 해당 idx 요소를 lru_list의 맨 앞으로 보냄. 그리고 그 tag의 포인터 반환
+  // 해당 idx 요소를 lru_list의 맨 앞으로 보냄. 그리고 그 요소의 iterator 반환
     lru_list[idx].splice(lru_list[idx].begin(), lru_list[idx], it->second);
     return &(*it->second);
   }
-  // 존재하는거 없으면 NULL
+  // 존재하는거 없으면 NULL pointer 반환
   return NULL;
 }
 
 uint64_t cache_sim_t::victimize(uint64_t addr) {
   size_t idx = (addr >> idx_shift) & (sets - 1);
   uint64_t victim = 0;
-  // set 꽉 찼으면
+  // set 꽉찼으면 가장 사용 안한 맨 뒤 요소를 victim으로 선정
   if (lru_list[idx].size() == ways) {
     victim = lru_list[idx].back();
     tags_map[idx].erase(victim >> idx_shift);
     lru_list[idx].pop_back();
   }
+  // 추가할 line 맨 앞으로 가져옴
   lru_list[idx].push_front((addr >> idx_shift) | VALID);
   tags_map[idx][(addr >> idx_shift) | VALID] = lru_list[idx].begin();
   return victim;

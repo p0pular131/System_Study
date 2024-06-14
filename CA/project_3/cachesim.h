@@ -10,7 +10,6 @@
 #include <cstdint>
 #include <vector>
 #include <list>
-#include <map>
 
 class cache_sim_t
 {
@@ -27,7 +26,10 @@ class cache_sim_t
   static cache_sim_t* construct(const char* config, const char* name);
 
  protected:
+  // 각 set 안에서 최근에 사용된 정보들을 저장할 list생성
+  // list는 각 set을 나타내고, vector는 set의 집합인 cache 전체를 의미
   std::vector<std::list<uint64_t>> lru_list;
+  // 해당 tag를 바로찾아갈 수 있도록 tag를 key로하고 value를 list iterator로하는 hash_map 생성
   std::vector<std::map<uint64_t, std::list<uint64_t>::iterator>> tags_map;
 
   static const uint64_t VALID = 1ULL << 63;
@@ -50,7 +52,7 @@ class cache_sim_t
   uint64_t bytes_read;
   uint64_t write_accesses;
   uint64_t write_misses;
-  uint64_t bytes_written;
+  uint64_t bytes_written; 
   uint64_t writebacks;
 
   std::string name;
@@ -68,7 +70,7 @@ class fa_cache_sim_t : public cache_sim_t
   uint64_t victimize(uint64_t addr);
  private:
   std::list<uint64_t> lru_list;
-  std::unordered_map<uint64_t, std::list<uint64_t>::iterator> tags_map;
+  std::map<uint64_t, std::list<uint64_t>::iterator> tags_map;
   static bool cmp(uint64_t a, uint64_t b);
   std::map<uint64_t, uint64_t> tags;
 };
