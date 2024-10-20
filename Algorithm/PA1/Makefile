@@ -1,4 +1,4 @@
 main.out: main.c
 	gcc -o main.out main.c
 clean: 
-	rm -rf *.out
+	rm -rf main.out
