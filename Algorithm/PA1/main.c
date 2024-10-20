@@ -12,6 +12,7 @@ void swap(int *a, int *b) {
 } 
 
 void printHeap(int* maxheap, int* minheap) {
+    // print function for debug
     printf("Maxheap length : %d\n",maxHeapLength);
     for(int i = 0; i < maxHeapLength; i++) {
         printf("%d ",maxheap[i]);
@@ -26,7 +27,7 @@ void printHeap(int* maxheap, int* minheap) {
 }
 
 void heapify_up(int* maxHeap, int* minHeap) {
-    // 1. maxheap 
+    // 1. heapify maxheap upward
     int idx = maxHeapLength - 1;
     if(idx != 0) {
         while((idx!= 0) && (maxHeap[idx] > maxHeap[(idx-1)/2])) {
@@ -36,7 +37,7 @@ void heapify_up(int* maxHeap, int* minHeap) {
         }
     }
 
-    // 2. minheap
+    // 2. heapify minheap downward
     idx = minHeapLength - 1;
     if(idx != 0) {
         while((idx!= 0) && (minHeap[idx] < minHeap[(idx-1)/2])) {
@@ -54,8 +55,9 @@ void heapify_up(int* maxHeap, int* minHeap) {
 }
 
 void heapify_up_delete(int* heap, int heapLength, int startIdx, int minmax) {
-    // 0 -> minheap, 
+    // heapify upeard starting at deleted element's location
     int idx = startIdx;
+    // minmax : 0 -> minheap, 1 -> maxheap
     if(minmax == 0){
         if(heapLength != 0) {
             while((idx!= 0) && (heap[idx] > heap[(idx-1)/2])) {
@@ -79,7 +81,7 @@ void heapify_up_delete(int* heap, int heapLength, int startIdx, int minmax) {
 
 
 void heapify_down(int* maxHeap, int* minHeap) {
-    // 1. maxheap 
+    // 1. heapify maxheap downward
     int idx = 0;
     if(maxHeapLength -1 != 0) {
         while((2*idx + 1 < maxHeapLength)) {
@@ -104,7 +106,7 @@ void heapify_down(int* maxHeap, int* minHeap) {
         }
     }
 
-    // 2. minheap
+    // 2. heapify maxheap downward
     idx = 0;
     if(minHeapLength -1 != 0) {
         while((2*idx + 1 < minHeapLength)) {
@@ -139,14 +141,13 @@ void insert(int* maxHeap, int* minHeap, int element) {
     // if maxHeap is empty, insert the elemet to the maxHeap first. 
     if(maxHeapLength == 0) {
         maxHeap[0] = element;
-        printf("maxHeap[0] : %d\n",maxHeap[0]);
         maxHeapLength++;
     }
     else if(minHeapLength == 0) {
         minHeap[0] = element;
         minHeapLength++;
     }
-    // if both heaps are not empty, compare the element with the root of each heap
+    // if both heaps are not empty, compare the length of each heap and insert to smaller one. 
     else {
         if(maxHeapLength <= minHeapLength) {
             maxHeap[maxHeapLength] = element;
@@ -157,6 +158,7 @@ void insert(int* maxHeap, int* minHeap, int element) {
             minHeapLength++;
         }
     }
+    // heapify again
     heapify_up(maxHeap, minHeap);
     heapify_down(maxHeap, minHeap);
 }
@@ -166,12 +168,19 @@ int find_min(int* maxHeap, int* minHeap) {
     int result = __INT32_MAX__, resultIdx = 0;
     if(maxHeapLength==0) {
         if(minHeapLength == 0) {
+            // no value in heaps
             return -1;
         }
         else {
+            // only minHeap has one element
             return minHeap[0];
         }
     }
+    else if(minHeapLength == 0) {
+        // only maxHeap has one element
+        return maxHeap[0];
+    }
+    // find minimum value in maxHeap 
     for(int i = 0; i < maxHeapLength; i++) {
         if(maxHeap[i] < result) {
             result = maxHeap[i];
@@ -183,14 +192,21 @@ int find_min(int* maxHeap, int* minHeap) {
 
 int find_max(int* maxHeap, int* minHeap) {
     int result = -__INT32_MAX__-1, resultIdx = 0;
-    if(minHeapLength==0) {
-        if(maxHeapLength == 0) {
+    if(maxHeapLength==0) {
+        if(minHeapLength == 0) {
+            // no value in heaps
             return -1;
         }
         else {
-            return maxHeap[0];
+            // only minHeap has one element
+            return minHeap[0];
         }
     }
+    else if(minHeapLength == 0) {
+        // only maxHeap has one element
+        return maxHeap[0];
+    }
+    // find maximum value in minHeap
     for(int i=0; i< minHeapLength; i++) {
         if(minHeap[i] > result) {
             result = minHeap[i];
@@ -201,22 +217,26 @@ int find_max(int* maxHeap, int* minHeap) {
 }   
 
 int find_median(int* maxHeap, int* minHeap) {
-    if(maxHeapLength == 0) {
+    if(maxHeapLength==0) {
         if(minHeapLength == 0) {
+            // no value in heaps
             return -1;
         }
         else {
+            // only minHeap has one element
             return minHeap[0];
         }
     }
-    if(minHeapLength ==0 && maxHeapLength != 0) {
+    else if(minHeapLength == 0) {
+        // only maxHeap has one element
         return maxHeap[0];
     }
-
+    // if lengths are same, smaller one is median.
     if(maxHeapLength == minHeapLength) {
         return maxHeap[0] < minHeap[0] ? maxHeap[0] : minHeap[0];
     }
     else {
+        // if lengths are different, root is always median
         return maxHeapLength > minHeapLength ? maxHeap[0] : minHeap[0];
     }
 }
@@ -225,6 +245,7 @@ int delete_min(int* maxHeap, int* minHeap) {
     if(maxHeapLength == 0 && minHeapLength == 0) {
         return -1;
     }
+    // 1. find minumum
     int result = __INT32_MAX__, resultIdx = 0;
     if(maxHeapLength==0) {
         result = minHeap[0];
@@ -237,23 +258,26 @@ int delete_min(int* maxHeap, int* minHeap) {
             resultIdx = i;
         }
     }
+    // 2. delete minimum
     if(resultIdx == maxHeapLength-1) {
         maxHeapLength--;
-        return result;
     }
     else {
+        // swap the value with leaf node and delete
         swap(&maxHeap[maxHeapLength-1], &maxHeap[resultIdx]);
         maxHeapLength--;
+        // and heapify
         heapify_up_delete(maxHeap, maxHeapLength, resultIdx, 1);
-        return result;
     }
     heapify_down(maxHeap, minHeap);
+    return result;
 }
 
 int delete_max(int* maxHeap, int* minHeap) {
     if(maxHeapLength == 0 && minHeapLength == 0) {
         return -1;
     }
+    // 1. find maximum
     int result = -__INT32_MAX__-1, resultIdx = 0;
     if(minHeapLength==0) {
         result = maxHeap[0];
@@ -266,17 +290,18 @@ int delete_max(int* maxHeap, int* minHeap) {
             resultIdx = i;
         }
     }
+    // 2. delete maximum
     if(resultIdx == minHeapLength-1) {
         minHeapLength--;
-        return result;
     }
     else {
+        // swap the value with leaf node and delete
         swap(&minHeap[minHeapLength-1], &minHeap[resultIdx]);
         minHeapLength--;
+        // and heapify
         heapify_up_delete(minHeap, minHeapLength, resultIdx, 0);
-        return result;    
     }
-    heapify_down(maxHeap, minHeap);
+    return result;    
 }
 
 int delete_median(int* maxHeap, int* minHeap) {
@@ -285,7 +310,9 @@ int delete_median(int* maxHeap, int* minHeap) {
         result = -1;
         return result;
     }
+    // 1. find median
     result = find_median(maxHeap, minHeap);
+    // 2. swap root with leaf and heapify
     if(result == maxHeap[0]) {
         maxHeap[0] = maxHeap[maxHeapLength-1];
         maxHeapLength--;
@@ -310,22 +337,28 @@ int delete_median(int* maxHeap, int* minHeap) {
 }
 
 void balance(int* maxHeap, int* minHeap) {
-    if(maxHeapLength == 0 || minHeapLength == 0) {
+    if(maxHeapLength == 0 && minHeapLength == 0) {
         return;
     }
+    // we must check that diff of lengths are not above 2. 
+    // if it above 2, we have to move the longger heap's root to the shorter heap's leaf. 
     if(fabs(maxHeapLength - minHeapLength) >= 2) {
         if(maxHeapLength > minHeapLength) {
+            // take the root of maxHeap to minHeap
             minHeap[minHeapLength] = maxHeap[0];
             minHeapLength++;
             heapify_up(maxHeap, minHeap);
+            // delete the root of maxHeap
             maxHeap[0] = maxHeap[maxHeapLength-1];
             maxHeapLength--;
             heapify_down(maxHeap, minHeap);
         }
         else {
+            // take the root of maxHeap to minHeap
             maxHeap[maxHeapLength] = minHeap[0];
             maxHeapLength++;
             heapify_up(maxHeap, minHeap);
+            // delete the root of minHeap
             minHeap[0] = minHeap[minHeapLength-1];
             minHeapLength--;
             heapify_down(maxHeap, minHeap);
@@ -341,14 +374,13 @@ int main() {
             I: insert          D: delete            F: find
             M: minimum         X: maximum           E: mdedian      
 */
-    // 제출 전에 in, out 파일명 수정!
-    FILE *input = fopen("pq3.in", "r"); 
-    FILE *output = fopen("my.out", "w"); 
+    FILE *input = fopen("pq.in", "r"); 
+    FILE *output = fopen("pq.out", "w"); 
 
     int N; // the number of operations
     char operation[2], operand[2]; // current operation type
     int inputNumber; // current input number for insert
-    int *maxHeap, *minHeap, *symmHeap; // pointers of heap
+    int *maxHeap, *minHeap; // pointers of heap
     fscanf(input,"%d",&N);
     maxHeap = (int*)malloc(sizeof(int)*(N/2+1)); // we can assume that the number of insertion is less than N
     minHeap = (int*)malloc(sizeof(int)*(N/2+1));
@@ -357,12 +389,6 @@ int main() {
         char temp[4];
         fscanf(input,"%s",operation);
         if(operation[0] == 'I') { 
-        /*
-            1. insert the input value to short heap. 
-               -> if sizes are same, input to maxHeap. 
-            2. heapify each heaps
-            3. change the root value if maxHeap's root is laerger than minHeap's. 
-        */
             fscanf(input,"%d",&inputNumber);
             insert(maxHeap,minHeap,inputNumber);
         }
@@ -370,15 +396,15 @@ int main() {
             fscanf(input, "%s", operand);
             if(operand[0] == 'M') {
                 int min = delete_min(maxHeap, minHeap);
-                heapify_down(maxHeap, minHeap);
             }
             else if(operand[0] == 'X') {
                 int max = delete_max(minHeap, minHeap);
-                heapify_down(maxHeap, minHeap);
             }
             else if(operand[0] == 'E') {
                 int median = delete_median(maxHeap,minHeap);
             }
+            // check difference of two heap's length 
+            // because the delete operation may cause the large difference of lenghts
             balance(maxHeap, minHeap);
         }
         else if(operation[0] == 'F'){
@@ -411,9 +437,6 @@ int main() {
                 }
             }
         }
-        printf("=====================================\n");
-        printf("Current operation : %s %s\n",operation,operand);
-        printHeap(maxHeap, minHeap);
     }
 
     free(maxHeap);
