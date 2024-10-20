@@ -269,7 +269,6 @@ int delete_min(int* maxHeap, int* minHeap) {
         // and heapify
         heapify_up_delete(maxHeap, maxHeapLength, resultIdx, 1);
     }
-    heapify_down(maxHeap, minHeap);
     return result;
 }
 
@@ -298,7 +297,6 @@ int delete_max(int* maxHeap, int* minHeap) {
         // swap the value with leaf node and delete
         swap(&minHeap[minHeapLength-1], &minHeap[resultIdx]);
         minHeapLength--;
-        // and heapify
         heapify_up_delete(minHeap, minHeapLength, resultIdx, 0);
     }
     return result;    
@@ -438,7 +436,7 @@ int main() {
             }
         }
     }
-
+    printHeap(maxHeap, minHeap);
     free(maxHeap);
     free(minHeap);
     fclose(input);
