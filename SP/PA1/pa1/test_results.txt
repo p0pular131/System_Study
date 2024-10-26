@@ -1,0 +1,40 @@
+Checking for string.h functions usage:
+No string.h functions found. PASS
+
+Test Case 1: ls
+PASS
+
+Test Case 2: ls -al
+PASS
+
+Test Case 3: head
+PASS
+
+Test Case 4: tail
+PASS
+
+Test Case 5: pwd
+PASS
+
+Test Case 6: invalid command
+PASS
+
+Test Case 7: invalid path
+PASS
+
+Test Case 8: abnormally executed command
+FAIL
+Expected:
+ERROR: The command is executed abnormally
+Got:
+ERROR: invalid path
+
+Test Case 9: Complex Case 1: cp, mv, head
+PASS
+
+Test Case 10: Complex Case 2: cp, mv, tail, ls
+PASS
+
+Test Case 11: Complex Case 2: cp, mv, head, tail, ls
+PASS
+
