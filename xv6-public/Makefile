@@ -184,6 +184,7 @@ UPROGS=\
 	_set_nice_test\
 	_get_nice_test\
 	_ps_test\
+	_my_test\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
