@@ -7,9 +7,7 @@
 - Data Structure 염익준
 
 24 Fall
-- PS
-- OS
-- Machine Learning
-- Data Base 
-- Web Programming
-- System Programming
+- PS, Algorithm 조민재, 김형식
+- OS 서의성
+- Data Base 남범석
+- System Programming 우홍욱
