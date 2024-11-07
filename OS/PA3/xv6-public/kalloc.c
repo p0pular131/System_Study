@@ -33,6 +33,7 @@ kinit1(void *vstart, void *vend)
 {
   initlock(&kmem.lock, "kmem");
   kmem.use_lock = 0;
+  freed_mem_cnt = 0;
   freerange(vstart, vend);
 }
 
@@ -74,6 +75,9 @@ kfree(char *v)
   kmem.freelist = r;
   if(kmem.use_lock)
     release(&kmem.lock);
+  
+  // 해제된 메모리 cnt ++
+  freed_mem_cnt++;
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -91,6 +95,13 @@ kalloc(void)
     kmem.freelist = r->next;
   if(kmem.use_lock)
     release(&kmem.lock);
+
+  // 해제된 메모리 cnt --
+  freed_mem_cnt--;
+  // 음수면 panic
+  if(freed_mem_cnt < 0) {
+    panic("kalloc: freed_mem_cnt < 0");
+  }
   return (char*)r;
 }
 

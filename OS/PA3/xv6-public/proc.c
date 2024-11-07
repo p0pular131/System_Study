@@ -7,6 +7,10 @@
 #include "proc.h"
 #include "spinlock.h"
 
+#define BASE 0x40000000
+#define MMAA_SIZE 64
+struct mmap_area mmaa[MMAA_SIZE];
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -531,4 +535,184 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+uint 
+mmap(uint addr, int length, int prot, int flags, int fd, int offset) 
+{
+  // succed -> return start address, fail -> return 0
+  struct proc *curproc = myproc();
+  uint start_addr = addr + BASE;
+
+  struct file *f = 0;
+  if (fd != -1){
+    f = curproc->ofile[fd];
+  }  
+  // parsing flags
+  short annonymous = 0, populate = 0, prot_read = 0, prot_write = 0;
+  annonymous = flags & MAP_ANONYMOUS == 1 ? 1 : 0;
+  populate = flags & MAP_POPULATE == 1 ? 1 : 0;
+  prot_read = prot & PROT_READ == 1 ? 1 : 0;
+  prot_write = prot & PROT_WRITE == 1 ? 1 : 0;
+
+  // fail cases
+  if((annonymous == 0) && (fd == -1)) {
+    return 0;
+  }
+  if(annonymous == 0) {
+    if((prot_read == 1) && (f->readable == 0)) {
+      return 0;
+    }
+    if((prot_write == 1) && (f->writable == 0)) {
+      return 0;
+    }
+  }
+
+  // find the empty mmap_area
+  int loc = 0;
+  while(mmaa[loc].is_exist != 0) {
+    loc++;
+  }
+  // there is no empty mmap_area
+  if(loc == (MMAA_SIZE-1)) {
+    return 0;
+  }  
+
+  mmaa[loc].f = f;
+  mmaa[loc].addr = start_addr;
+  mmaa[loc].length = length;
+  mmaa[loc].offset = offset;
+  mmaa[loc].prot = prot;
+  mmaa[loc].flags = flags;
+  mmaa[loc].p = curproc;
+  mmaa[loc].is_exist = 1;
+
+  // case 1. just return address and allocate after page fault
+  if(flags == 0) {
+    return start_addr;
+  }
+  if(populate == 0) {
+    return start_addr;
+  } 
+
+  // case 2. 
+  char* memory = 0;
+  int page_len = length / PGSIZE;
+  if((annonymous==0) && (populate == 1)) {
+    for(int i=0;i<page_len;i++) {
+      memory = kalloc();
+      if(memory == 0) {
+        return 0;
+      }
+      memset(memory, 0, PGSIZE);
+      fileread(f, memory, PGSIZE);
+      // fail to make page table
+      if(mappages(curproc->pgdir, (void*)(start_addr + i*PGSIZE), PGSIZE, V2P(memory), prot|PTE_U) < 0) {
+        kfree(memory);
+        return 0;
+      }
+    }
+  }
+  // case 3. 
+  if((annonymous==1) && (populate == 1)) {
+    uint offset_buff = f->off;
+    for(int i=0;i<page_len;i++) {
+      memory = kalloc();
+      if(memory == 0) {
+        return 0;
+      }
+      memset(memory, 0, PGSIZE);
+      fileread(f, memory, PGSIZE);
+      if(mappages(curproc->pgdir, (void*)(start_addr + i*PGSIZE), PGSIZE, V2P(memory), prot|PTE_U) < 0) {
+        kfree(memory);
+        return 0;
+      }
+    }
+    f->off = offset_buff;
+  }
+
+  return start_addr;
+}
+
+int
+page_fault_handler(uint addr, uint err) {
+  struct proc *curproc = myproc();
+  int idx = -1;
+  for(int i=0;i<MMAA_SIZE;i++) {
+    if((mmaa[i].addr <= addr) && (addr <= (mmaa[i].addr + mmaa[i].length)) && (mma[i].p == curproc)) {
+      idx = i;
+      break;
+    }
+  }
+
+  if((idx == -1) || (idx == MMAA_SIZE)) {
+    return -1;
+  }
+
+  int page_len = mmaa[idx].length / PGSIZE;
+  int annonymous = mmaa[idx].flags & MAP_ANONYMOUS == 1 ? 1 : 0;
+  int prot_write = mmaa[idx].prot & PROT_WRITE == 1 ? 1 : 0;
+
+  if((prot_write == 0) && (err == 1)) {
+    return -1;
+  }
+
+  char* memory = 0;
+  memory = kalloc();
+  if(memory == 0) {
+    return 0;
+  }
+  memset(memory, 0, PGSIZE);
+
+  if(annonymous == 0) {
+    fileread(mmaa[idx].f, memory, PGSIZE);
+    for(int i=mmaa[idx].addr; i<(mmaa[idx].addr + mmaa[idx].length); i+=PGSIZE) {
+      if((i <= addr) && (addr <= (i+PGSIZE))) {
+        if(prot_write == 1){
+          if(mappages(curproc->pgdir, (void*)i, PGSIZE, V2P(memory), mmaa[idx].prot | PTE_U | PTE_W) < 0) {
+            kfree(memory);
+            return -1;
+          }
+        }
+        else {
+          if(mappages(curproc->pgdir, (void*)i, PGSIZE, V2P(memory), mmaa[idx].prot | PTE_U) < 0) {
+            kfree(memory);
+            return -1;
+          }
+        }
+        mmaa[idx].f->off += PGSIZE;
+      }
+    }
+  }
+  else  {
+    for(int i=mmaa[idx].addr; i<(mmaa[idx].addr + mmaa[idx].length); i+=PGSIZE) {
+      if((i <= addr) && (addr <= (i+PGSIZE))) {
+          if(mappages(curproc->pgdir, (void*)i, PGSIZE, V2P(memory), mmaa[idx].prot | PTE_U | PTE_W) < 0) {
+            kfree(memory);
+            return -1;
+          }
+        else {
+          if(mappages(curproc->pgdir, (void*)i, PGSIZE, V2P(memory), mmaa[idx].prot | PTE_U) < 0) {
+            kfree(memory);
+            return -1;
+          }
+        }
+      }
+    }
+  }
+
+  return 0;
+}
+
+
+uint 
+munmap(uint addr)
+{
+
+}
+
+int 
+freemem()
+{
+  return freed_mem_cnt;
 }
