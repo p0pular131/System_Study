@@ -123,7 +123,7 @@ void            wakeup(void*);
 void            yield(void);
 uint            mmap(uint, int, int, int, int, int);
 int             page_fault_handler(uint, uint);
-int             munmap(uint);
+uint            munmap(uint);
 int             freemem(void);
 
 // swtch.S
@@ -190,6 +190,7 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
+
 // mmap 
 pte_t*          walkpgdir(pde_t *pgdir, const void *va, int alloc);
 int             mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
