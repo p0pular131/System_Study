@@ -68,7 +68,7 @@ char*           kalloc(void);
 void            kfree(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
-int             freed_mem_cnt;
+int             return_freed_mem_cnt(void);
 
 // kbd.c
 void            kbdintr(void);
@@ -123,7 +123,7 @@ void            wakeup(void*);
 void            yield(void);
 uint            mmap(uint, int, int, int, int, int);
 int             page_fault_handler(uint, uint);
-uint            munmap(uint);
+int             munmap(uint);
 int             freemem(void);
 
 // swtch.S

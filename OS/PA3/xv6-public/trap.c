@@ -79,7 +79,8 @@ trap(struct trapframe *tf)
     break;
   case T_PGFLT:
     cprintf("page fault\n");
-    if(page_fault_handler(rcr2(), tf->err&2) != -1){
+    int suc = page_fault_handler(rcr2(), tf->err&2);
+    if(suc != -1){
       break;
     }
   //PAGEBREAK: 13

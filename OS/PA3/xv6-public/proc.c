@@ -201,109 +201,77 @@ growproc(int n)
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
-int
-fork(void)
-{
-  int i, pid;
-  struct proc *np;
-  struct proc *curproc = myproc();
+int 
+fork(void) {
+    int i, pid;
+    struct proc *np;
+    struct proc *curproc = myproc();
 
-  // Allocate process.
-  if((np = allocproc()) == 0){
-    return -1;
-  }
-
-  // Copy process state from proc.
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-    kfree(np->kstack);
-    np->kstack = 0;
-    np->state = UNUSED;
-    return -1;
-  }
-  np->sz = curproc->sz;
-  np->parent = curproc;
-  *np->tf = *curproc->tf;
-
-  // Clear %eax so that fork returns 0 in the child.
-  np->tf->eax = 0;
-
-  for(i = 0; i < NOFILE; i++)
-    if(curproc->ofile[i])
-      np->ofile[i] = filedup(curproc->ofile[i]);
-  np->cwd = idup(curproc->cwd);
-
-  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
-
-  // mmap
-  int idx = -1;
-  for(int i=0;i<MMAA_SIZE;i++) {
-    // find parent process first
-    if((mmaa[i].p == curproc) && (mmaa[i].is_exist == 1)) {
-      // find propal location to allocate child process
-      for(int j=0;j<MMAA_SIZE;j++) {
-        if(mmaa[j].is_exist == 0) {
-          idx = j;
-          break;
-        }
-      }
-      if(idx == -1) {
+    if((np = allocproc()) == 0){
         return -1;
-      }
+    }
 
-      mmaa[idx].f = mmaa[i].f;
-      mmaa[idx].addr = mmaa[i].addr;
-      mmaa[idx].length = mmaa[i].length;
-      mmaa[idx].offset = mmaa[i].offset;
-      mmaa[idx].prot = mmaa[i].prot;
-      mmaa[idx].flags = mmaa[i].flags;
-      mmaa[idx].p = np;
-      mmaa[idx].is_exist = 1;
-    
-      char* memory = 0;
-      int page_len = mmaa[i].length / PGSIZE;
-      if ((mmaa[i].flags & MAP_ANONYMOUS) == 0) {
-          uint offset_buff = mmaa[i].f->off;
-          mmaa[i].f->off = mmaa[i].offset;
+    if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+        kfree(np->kstack);
+        np->kstack = 0;
+        np->state = UNUSED;
+        return -1;
+    }
+    np->sz = curproc->sz;
+    np->parent = curproc;
+    *np->tf = *curproc->tf;
 
-          for (int cnt = 0; cnt < page_len; cnt++) {
-              memory = kalloc();
-              if (!memory) return -1;
+    np->tf->eax = 0;
 
-              memset(memory, 0, PGSIZE);
-              fileread(mmaa[i].f, memory, PGSIZE);
+    for(i = 0; i < NOFILE; i++)
+        if(curproc->ofile[i])
+            np->ofile[i] = filedup(curproc->ofile[i]);
+    np->cwd = idup(curproc->cwd);
 
-              if (mappages(np->pgdir, (void *)(mmaa[i].addr + cnt * PGSIZE), PGSIZE, V2P(memory), mmaa[i].prot | PTE_U) == -1) {
-                  kfree(memory);
-                  return -1;
-              }
-          }
-          mmaa[i].f->off = offset_buff;
-      } else {
-          for (int cnt = 0; cnt < page_len; cnt++) {
-              memory = kalloc();
-              if (!memory) return -1;
+    safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
-              memset(memory, 0, PGSIZE);
+    int idx = -1;
+    for(int i=0; i<MMAA_SIZE; i++) {
+        if((mmaa[i].p == curproc) && (mmaa[i].is_exist == 1)) {
+            for(int j=0; j<MMAA_SIZE; j++) {
+                if(mmaa[j].is_exist == 0) {
+                    idx = j;
+                    break;
+                }
+            }
+            if(idx == -1) {
+                return -1;
+            }
 
-              if (mappages(np->pgdir, (void *)(mmaa[i].addr + cnt * PGSIZE), PGSIZE, V2P(memory), mmaa[i].prot | PTE_U) == -1) {
-                  kfree(memory);
-                  return -1;
-              }
-          }
-      }
-    } 
-  }
+            mmaa[idx] = mmaa[i];
+            mmaa[idx].p = np;
+            mmaa[idx].is_exist = 1;
 
-  pid = np->pid;
+            for (int cnt = 0; cnt < mmaa[i].length / PGSIZE; cnt++) {
+                char *parent_addr = (char *)(mmaa[i].addr + cnt * PGSIZE);
+                char *child_addr = kalloc();
+                if (!child_addr) return -1;
 
-  acquire(&ptable.lock);
+                for (int byte_idx = 0; byte_idx < PGSIZE; byte_idx++) {
+                    child_addr[byte_idx] = parent_addr[byte_idx];
+                }
+                if (mappages(np->pgdir, (void *)(mmaa[i].addr + cnt * PGSIZE), PGSIZE, V2P(child_addr), mmaa[i].prot | PTE_U) == -1) {
+                    kfree(child_addr);
+                    return -1;
+                }
+            }
+        }
+    }
 
-  np->state = RUNNABLE;
+    pid = np->pid;
 
-  release(&ptable.lock);
+    acquire(&ptable.lock);
 
+    np->state = RUNNABLE;
 
-  return pid;
+    release(&ptable.lock);
+
+    return pid;
 }
 
 // Exit the current process.  Does not return.
@@ -629,27 +597,23 @@ mmap(uint addr, int length, int prot, int flags, int fd, int offset)
     f = curproc->ofile[fd];
   }  
 
-  // Parsing flags
   short prot_read = (prot & PROT_READ) != 0;
   short prot_write = (prot & PROT_WRITE) != 0;
   short populate = (flags & MAP_POPULATE) != 0;
   short anonymous = (flags & MAP_ANONYMOUS) != 0;
 
-  // Fail cases for invalid parameters
   if ((anonymous == 0 && fd == -1) || (anonymous == 0 && (!f || (prot_read && !f->readable) || (prot_write && !f->writable)))) {
     return 0;
   }
 
-  // Find an empty mmap_area
   int loc = 0;
   while (loc < MMAA_SIZE && mmaa[loc].is_exist != 0) {
     loc++;
   }
   if (loc == MMAA_SIZE) { 
-    return 0;  // No empty mmap_area
+    return 0;  
   }
 
-  // Set mmap_area properties
   mmaa[loc].f = f;
   mmaa[loc].addr = start_addr;
   mmaa[loc].length = length;
@@ -659,14 +623,13 @@ mmap(uint addr, int length, int prot, int flags, int fd, int offset)
   mmaa[loc].p = curproc;
   mmaa[loc].is_exist = 1;
 
-  // Allocate pages only if populate is set
   if (populate) {
     char *memory = 0;
-    int page_len = (length + PGSIZE - 1) / PGSIZE;  // Adjust for partial pages
+    int page_len = (length + PGSIZE - 1) / PGSIZE;
 
     for (int i = 0; i < page_len; i++) {
       memory = kalloc();
-      if (!memory) return 0; // Allocation failure
+      if (!memory) return 0;
 
       memset(memory, 0, PGSIZE);
       
@@ -676,7 +639,7 @@ mmap(uint addr, int length, int prot, int flags, int fd, int offset)
           return 0;
         }
       } else {
-        fileread(f, memory, PGSIZE);  // Read from file
+        fileread(f, memory, PGSIZE);  
         if (mappages(curproc->pgdir, (void*)(start_addr + i * PGSIZE), PGSIZE, V2P(memory), prot | PTE_U) < 0) {
           kfree(memory);
           return 0;
@@ -690,82 +653,62 @@ mmap(uint addr, int length, int prot, int flags, int fd, int offset)
 
 int
 page_fault_handler(uint addr, uint err) {
-  struct proc *curproc = myproc();
-  int idx = -1;
-  
-  for (int i = 0; i < MMAA_SIZE; i++) {
-    if ((mmaa[i].addr <= addr) && (addr <= (mmaa[i].addr + mmaa[i].length)) && (mmaa[i].p == curproc)) {
-      idx = i;
-      break;
-    }
-  }
+    struct proc *curproc = myproc();
+    int idx = -1;
 
-  if ((idx == -1) || (idx == MMAA_SIZE)) {
-    return -1;
-  }
-
-  int page_len = mmaa[idx].length / PGSIZE;
-  int annonymous = 0;
-  if (mmaa[idx].flags & MAP_ANONYMOUS) annonymous = 1;
-  int prot_write = 0;
-  if (mmaa[idx].prot & PROT_WRITE) prot_write = 1; 
-
-  if ((prot_write == 0) && (err == 1)) {
-    return -1;
-  }
-
-  char* memory = kalloc();
-  if (memory == 0) {
-    return 0;
-  }
-  memset(memory, 0, PGSIZE);
-
-  if (annonymous == 0) {
-    fileread(mmaa[idx].f, memory, PGSIZE);
-
-    for (int i = 0; i < page_len; i++) {
-      uint page_addr = mmaa[idx].addr + (i * PGSIZE);
-      
-      if ((page_addr <= addr) && (addr <= (page_addr + PGSIZE))) {
-        int perm = mmaa[idx].prot | PTE_U;
-        if (prot_write == 1) {
-          perm |= PTE_W;
+    for (int i = 0; i < MMAA_SIZE; i++) {
+        if ((mmaa[i].addr <= addr) && (addr < (mmaa[i].addr + mmaa[i].length)) && (mmaa[i].p == curproc)) {
+            idx = i;
+            break;
         }
-        
-        if (mappages(curproc->pgdir, (void*)page_addr, PGSIZE, V2P(memory), perm) < 0) {
-          kfree(memory);
-          return -1;
-        }
-        
-        mmaa[idx].f->off += PGSIZE;
-      }
     }
-  } else {
-    for (int i = 0; i < page_len; i++) {
-      uint page_addr = mmaa[idx].addr + (i * PGSIZE);
-      
-      if ((page_addr <= addr) && (addr <= (page_addr + PGSIZE))) {
-        int perm = mmaa[idx].prot | PTE_U | PTE_W;
-        
-        if (mappages(curproc->pgdir, (void*)page_addr, PGSIZE, V2P(memory), perm) < 0) {
-          kfree(memory);
-          return -1;
-        }
-      }
-    }
-  }
 
-  return 0;
+    if (idx == -1) {
+        return -1;  
+    }
+
+    int is_write = err & 0x2;  
+    if ((is_write && !(mmaa[idx].prot & PROT_WRITE)) || (!(mmaa[idx].prot & PROT_READ))) {
+        return -1;
+    }
+
+    char* memory = kalloc();
+    if (memory == 0) {
+        return -1;  
+    }
+    memset(memory, 0, PGSIZE);
+
+    uint page_addr = PGROUNDDOWN(addr);
+    int perm = mmaa[idx].prot | PTE_U;
+    if (mmaa[idx].prot & PROT_WRITE) {
+        perm |= PTE_W;  
+    }
+
+    if ((mmaa[idx].flags & MAP_ANONYMOUS) == 0) {
+        int file_offset = mmaa[idx].offset + (page_addr - mmaa[idx].addr);
+        mmaa[idx].f->off = file_offset;
+        int bytes_read = fileread(mmaa[idx].f, memory, PGSIZE);
+        if (bytes_read < 0) {
+            kfree(memory);
+            return -1;
+        }
+    }
+
+    if (mappages(curproc->pgdir, (void*)page_addr, PGSIZE, V2P(memory), perm) < 0) {
+        kfree(memory);
+        return -1;
+    }
+
+    return 0; 
 }
 
-
-uint 
+int 
 munmap(uint addr)
 { 
   int idx = -1;
   struct proc *curproc = myproc();
 
-  for(int i=0;i<MMAA_SIZE;i++) {
+  for(int i = 0; i < MMAA_SIZE; i++) {
     if((mmaa[i].p == curproc) && (mmaa[i].addr == addr) && (mmaa[i].is_exist == 1)) {
       idx = i;
       break;
@@ -773,20 +716,19 @@ munmap(uint addr)
   }
 
   if(idx == -1) {
-    return -1;
+    return -1;  
   }
 
-  int page_len = mmaa[idx].length / PGSIZE;
-  for(int i=0;i<page_len;i++) {
-    pte_t *pte = walkpgdir(curproc->pgdir, (void*)(addr + i*PGSIZE), 0);
+  int page_len = (mmaa[idx].length + PGSIZE - 1) / PGSIZE;
+  for(int i = 0; i < page_len; i++) {
+    pte_t *pte = walkpgdir(curproc->pgdir, (void*)(addr + i * PGSIZE), 0);
     if (pte && (*pte & PTE_P)) {
         char *v_addr = P2V(PTE_ADDR(*pte));
-        memset(v_addr, 1, PGSIZE); 
-        kfree(v_addr);             
-        *pte = 0;                  
+        memset(v_addr, 0, PGSIZE);
+        kfree(v_addr);
+        *pte = 0;
     }
   }
-  switchuvm(curproc);
 
   mmaa[idx].f = 0;
   mmaa[idx].addr = 0;
@@ -797,12 +739,11 @@ munmap(uint addr)
   mmaa[idx].p = 0;
   mmaa[idx].is_exist = 0;
 
-  return 1;
+  return 1; 
 }
-
 
 int 
 freemem()
 {
-  return freed_mem_cnt;
+  return return_freed_mem_cnt();
 }

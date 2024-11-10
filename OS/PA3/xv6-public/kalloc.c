@@ -23,6 +23,7 @@ struct {
   struct run *freelist;
 } kmem;
 
+int freed_mem_cnt = 0;
 // Initialization happens in two phases.
 // 1. main() calls kinit1() while still using entrypgdir to place just
 // the pages mapped by entrypgdir on free list.
@@ -105,3 +106,7 @@ kalloc(void)
   return (char*)r;
 }
 
+int 
+return_freed_mem_cnt(void) {
+  return freed_mem_cnt;
+}
