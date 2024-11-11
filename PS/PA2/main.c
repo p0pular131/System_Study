@@ -22,6 +22,9 @@ int grid[101][101];
 int dx[4] = {0,1,-1,0};
 int dy[4] = {1,0,0,-1};
 
+Node maxNode;
+int max = -1;
+
 void printDummy() {
     printf("1 1 1 1 0\n");
 }
@@ -100,12 +103,17 @@ void creatSol(Node* cell) {
 
 Node anealingSolution() {
     Node currSol;
-    currSol.x1 = 1; currSol.y1 = 1; currSol.x2 = 1; currSol.y2 = 1; currSol.coin = grid[1][1];
+    // 가장 coin이 많은 지점을 시작점으로 잡고 시작
+    currSol.x1 = maxNode.x1; currSol.y1 = maxNode.y1; 
+    currSol.x2 = maxNode.x1; currSol.y2 = maxNode.y1; currSol.coin = max;
+
     Node bestSol = currSol;
     Node newSol = currSol;
 
-    double T = 100000.0;
-    double coolingRate = 0.99;
+    double T = 1000000.0;
+    double coolingRate = 0.999;
+
+    coolingRate -= (N / 10) * 0.0005;
     
     while(T > 0.01) {
         creatSol(&newSol);
@@ -142,6 +150,11 @@ int main() {
     for(int i=1;i<=N;i++) {
         for(int j=1;j<=N;j++) {
             fscanf(fp,"%d ",&grid[i][j]);
+            if(grid[i][j] >= max) {
+                max = grid[i][j];
+                maxNode.x1 = i;
+                maxNode.y1 = j;
+            }
         }
     }
     // rand에 무작위 시드 부여
@@ -156,8 +169,11 @@ int main() {
             printDummy();
         }
         // update grid
-        collectCoin(best);
+        if(collectCoin(best) == -1) {
+            printf("Cannot collect coin");
+        }
     }
+
     // 제출 전에 수정
     printf("Total collect coin is %d\n",coinTotal);
     return 0;
