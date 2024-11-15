@@ -71,7 +71,7 @@ int calculateCost(Node cell) {
 }
 
 void creatSol(Node* cell) {
-    int random = 0;
+    int random;
     int x1, x2, y1, y2;
     
     random = rand() % 4;
@@ -93,6 +93,7 @@ void creatSol(Node* cell) {
     for(int i=x1;i<=x2;i++) {
         for(int j=y1;j<=y2;j++) {
             if(coin > grid[i][j]) {
+                // update min coin in the cell
                 coin = grid[i][j];
             }
         }
@@ -102,18 +103,29 @@ void creatSol(Node* cell) {
 }
 
 Node anealingSolution() {
-    Node currSol;
     // 가장 coin이 많은 지점을 시작점으로 잡고 시작
+    max = -1;
+    for(int i=1;i<=N;i++) {
+        for(int j=1;j<=N;j++) {
+            if(grid[i][j] >= max) {
+                max = grid[i][j];
+                maxNode.x1 = i;
+                maxNode.y1 = j;
+            }
+        }
+    }
+    Node currSol; // 시작점
     currSol.x1 = maxNode.x1; currSol.y1 = maxNode.y1; 
     currSol.x2 = maxNode.x1; currSol.y2 = maxNode.y1; currSol.coin = max;
+
 
     Node bestSol = currSol;
     Node newSol = currSol;
 
     double T = 1000000.0;
-    double coolingRate = 0.999;
+    double coolingRate = 0.9999;
 
-    coolingRate -= (N / 10) * 0.0005;
+    coolingRate -= (N / 10) * 0.0004;
     
     while(T > 0.01) {
         creatSol(&newSol);
@@ -164,13 +176,14 @@ int main() {
         Node best = anealingSolution();
         if(best.coin > 0) {
             printSol(&best);
+            // update grid
+            if(collectCoin(best) == -1) {
+                printf("Cannot collect coin\n");
+                exit(1);
+            }
         }
         else if(best.coin == 0) {
             printDummy();
-        }
-        // update grid
-        if(collectCoin(best) == -1) {
-            printf("Cannot collect coin");
         }
     }
 
