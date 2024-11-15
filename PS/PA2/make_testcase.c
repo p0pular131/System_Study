@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define N 100
-#define M 100
+#define N 50
+#define M 50
 
 int main() {
     FILE *fp = fopen("input_1.txt", "w");

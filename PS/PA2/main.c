@@ -34,39 +34,23 @@ void printSol(Node* sol) {
         sol->x1, sol->y1, sol->x2, sol->y2, sol->coin);
 }
 
-void printAll() {
-    int printCnt = 0;
-    for(int i=1;i<=N;i++) {
-        for(int j=1;j<=N;j++) {
-            printf("%d %d %d %d %d\n",i,j,i,j,grid[i][j]);
-            printCnt++;
-        }
-    }
-    while(printCnt <= M) {
-        printDummy();
-        printCnt++;
-    }
-}
-
 int collectCoin(Node cell) {
     int x1 = cell.x1, x2 = cell.x2, y1 = cell.y1, y2 = cell.y2, coin = cell.coin;
     // 해당 영역에서의 코인들을 수집하여 grid를 update하는 함수
     for(int i=x1;i<=x2;i++) {
         for(int j=y1;j<=y2;j++) {
             grid[i][j] -= coin;
-            // invalid operation -> termiante abnormally
             if(grid[i][j] < 0) {
                 return -1;
             }
         }
     }
-   coinTotal += (x2-x1+1) * (y2-y1+1) * coin;
+    coinTotal += (x2-x1+1) * (y2-y1+1) * coin;
 
     return 0;
 }
 
 int calculateCost(Node cell) {
-    // 해당 영역에서 수집 가능한 총 coin의 -만큼 반환
     return -1 * (cell.x2 - cell.x1 + 1) * (cell.y2 - cell.y1 +1) * cell.coin;
 }
 
@@ -93,17 +77,14 @@ void creatSol(Node* cell) {
     for(int i=x1;i<=x2;i++) {
         for(int j=y1;j<=y2;j++) {
             if(coin > grid[i][j]) {
-                // update min coin in the cell
                 coin = grid[i][j];
             }
         }
     }
-    // update cell
     cell->x1 = x1; cell->x2 = x2; cell->y1 = y1; cell->y2 = y2; cell->coin = coin;
 }
 
 Node anealingSolution() {
-    // 가장 coin이 많은 지점을 시작점으로 잡고 시작
     max = -1;
     for(int i=1;i<=N;i++) {
         for(int j=1;j<=N;j++) {
@@ -114,10 +95,9 @@ Node anealingSolution() {
             }
         }
     }
-    Node currSol; // 시작점
+    Node currSol;
     currSol.x1 = maxNode.x1; currSol.y1 = maxNode.y1; 
     currSol.x2 = maxNode.x1; currSol.y2 = maxNode.y1; currSol.coin = max;
-
 
     Node bestSol = currSol;
     Node newSol = currSol;
@@ -125,7 +105,7 @@ Node anealingSolution() {
     double T = 1000000.0;
     double coolingRate = 0.9999;
 
-    coolingRate -= (N / 10) * 0.0004;
+    coolingRate -= (N / 10) * 0.00035; // input 사이즈에 따라 가변적으로 수렴속도 조절
     
     while(T > 0.01) {
         creatSol(&newSol);
@@ -134,34 +114,30 @@ Node anealingSolution() {
         
         if((newCost < currCost) || (exp((currCost - newCost) / T) > (double)rand() / RAND_MAX)) {
             currSol = newSol;
-            // 더 나은 솔루션이면 bestSol 갱신
             if(newCost < calculateCost(bestSol)) {
                 bestSol = newSol;
             }
         }
-        
-        // 온도 감소
         T *= coolingRate;
     }
     return bestSol;
 }
 
-int main() {
-    // input만 제출 전에 stdin으로 변경하기
-    FILE *fp;
-    fp = fopen("input_1.txt","r");
-    if(fp == NULL) {
-       printf("Failed to open\n");
-       return -1;
-    }
-    // -1로 grid 초기화
+int main() {    
+    // FILE *fp;
+    // fp = fopen("input.txt","r");
+    // if(fp == NULL) {
+    //    printf("Failed to open\n");
+    //    return -1;
+    // }
     memset(grid,-1, sizeof(grid));
     
-    // grid에 input값 삽입
-    fscanf(fp,"%d %d",&N,&M);
+    // fscanf(fp,"%d %d",&N,&M);
+    scanf("%d %d",&N,&M);
     for(int i=1;i<=N;i++) {
         for(int j=1;j<=N;j++) {
-            fscanf(fp,"%d ",&grid[i][j]);
+            // fscanf(fp,"%d ",&grid[i][j]);
+            scanf("%d ",&grid[i][j]);
             if(grid[i][j] >= max) {
                 max = grid[i][j];
                 maxNode.x1 = i;
@@ -169,25 +145,22 @@ int main() {
             }
         }
     }
-    // rand에 무작위 시드 부여
     srand(time(NULL));
 
     for(int i=0;i<M;i++) {
         Node best = anealingSolution();
         if(best.coin > 0) {
             printSol(&best);
-            // update grid
             if(collectCoin(best) == -1) {
                 printf("Cannot collect coin\n");
                 exit(1);
             }
-        }
-        else if(best.coin == 0) {
+        } else if(best.coin == 0) {
             printDummy();
         }
     }
-
-    // 제출 전에 수정
-    printf("Total collect coin is %d\n",coinTotal);
+    
+    // printf("Total collect coin is %d\n",coinTotal);
+    // fclose(fp);
     return 0;
 }
