@@ -32,7 +32,7 @@ seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
-static pte_t *
+pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
   pde_t *pde;
@@ -71,6 +71,8 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
     if(*pte & PTE_P)
       panic("remap");
     *pte = pa | perm | PTE_P;
+    if(perm & PTE_U) 
+      add_to_lru(pgdir, (char*)P2V(pa), (char*)va);
     if(a == last)
       break;
     a += PGSIZE;
@@ -271,7 +273,13 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       if(pa == 0)
         panic("kfree");
       char *v = P2V(pa);
+      if(*pte & PTE_U) 
+        rm_from_lru(v);
       kfree(v);
+      *pte = 0;
+    }
+    else if(*pte & PTE_U){
+      clear_bitmap((*pte & 0xFFFFF000) >> 12);
       *pte = 0;
     }
   }
@@ -308,40 +316,80 @@ clearpteu(pde_t *pgdir, char *uva)
   if(pte == 0)
     panic("clearpteu");
   *pte &= ~PTE_U;
+  rm_from_lru((char*)P2V(PTE_ADDR(*pte)));
 }
 
 // Given a parent process's page table, create a copy
 // of it for a child.
-pde_t*
-copyuvm(pde_t *pgdir, uint sz)
-{
-  pde_t *d;
-  pte_t *pte;
-  uint pa, i, flags;
-  char *mem;
+pde_t* copyuvm(pde_t *pgdir, uint sz) {
+    pde_t *d;
+    pte_t *pte;
+    uint pa, i, flags;
+    char *mem;
+    char *swap_mem = 0;
 
-  if((d = setupkvm()) == 0)
-    return 0;
-  for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
-      panic("copyuvm: pte should exist");
-    if(!(*pte & PTE_P))
-      panic("copyuvm: page not present");
-    pa = PTE_ADDR(*pte);
-    flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto bad;
-    memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
-      kfree(mem);
-      goto bad;
+    if ((d = setupkvm()) == 0)
+        return 0;
+
+    for (i = 0; i < sz; i += PGSIZE) {
+        if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
+            panic("copyuvm: PTE does not exist");
+
+        // Handle swapped-out pages
+        if (!(*pte & PTE_P)) {
+            if ((swap_mem = kalloc()) == 0) {
+                cprintf("copyuvm: kalloc failed for swap_mem\n");
+                goto bad;
+            }
+
+            int page_block_num = (*pte & 0xFFFFF000) >> 12;
+            if (page_block_num < 0 || page_block_num >= SWAPMAX) {
+                cprintf("Invalid swap block number: %d\n", page_block_num);
+                kfree(swap_mem);
+                continue;
+            }
+
+            // Read and write swapped page
+            swapread(swap_mem, page_block_num);
+            int new_block_num = get_block_num();
+            if (new_block_num == -1) {
+                cprintf("copyuvm: no free swap blocks\n");
+                goto bad;
+            }
+            swapwrite(swap_mem, new_block_num);
+
+            // Update new PTE
+            pte_t *new_pte = walkpgdir(d, (void *)i, 0);
+            *new_pte = (new_block_num << 12) | PTE_FLAGS(*pte);
+
+            kfree(swap_mem);
+            swap_mem = 0;
+            continue;
+        }
+
+        // Handle present pages
+        pa = PTE_ADDR(*pte);
+        flags = PTE_FLAGS(*pte);
+        if ((mem = kalloc()) == 0) {
+            cprintf("copyuvm: kalloc failed for mem\n");
+            goto bad;
+        }
+        memmove(mem, (char *)P2V(pa), PGSIZE);
+        if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0) {
+            kfree(mem);
+            goto bad;
+        }
     }
-  }
-  return d;
+
+    if (swap_mem)
+        kfree(swap_mem);
+    return d;
 
 bad:
-  freevm(d);
-  return 0;
+    if (swap_mem)
+        kfree(swap_mem);
+    freevm(d);
+    return 0;
 }
 
 //PAGEBREAK!
@@ -392,3 +440,42 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 //PAGEBREAK!
 // Blank page.
 
+int 
+pfh(uint err) 
+{
+  uint fault_addr = rcr2();
+  uint align_addr = PGROUNDDOWN(fault_addr);
+  struct proc *curproc = myproc();
+  pde_t *pgdir = curproc->pgdir;
+
+  // check the page table entry's flags
+  pte_t *pte = walkpgdir(pgdir, (void *)align_addr, 0);
+  // if the PTE is not found or is not present or the page is not a user page, kill the process
+  if(pte == 0 || *pte & PTE_P || (*pte & PTE_U) == 0){
+    // cprintf("pagefault_handler: pte is 0\n");
+    curproc->killed = 1;
+    return -1;
+  }
+
+  // allocate a new page
+  char *new_mem = kalloc();
+  if(new_mem == 0){
+    // cprintf("pagefault_handler: out of memory\n");
+    curproc->killed = 1;
+    return -1;
+  }
+
+  // get the block number of the page
+  int page_block_num = (*pte & 0xFFFFF000) >> 12;
+  swapread((char*) new_mem, page_block_num);
+  clear_bitmap(page_block_num);
+
+  // update the PTE
+  *pte = (*pte & 0xFFF) | V2P(new_mem); // clear out the old address
+  *pte |= PTE_FLAGS(*pte) | PTE_P; // set the bits again
+
+  // add the page to the LRU list
+  add_to_lru(pgdir, new_mem, (char *)align_addr);
+
+  return 1;  
+}

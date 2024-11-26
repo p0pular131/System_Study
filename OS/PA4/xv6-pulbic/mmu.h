@@ -95,6 +95,7 @@ struct segdesc {
 #define PTE_W           0x002   // Writeable
 #define PTE_U           0x004   // User
 #define PTE_PS          0x080   // Page Size
+#define PTE_A           0x020   // Accessed
 
 // Address in page table or page directory entry
 #define PTE_ADDR(pte)   ((uint)(pte) & ~0xFFF)
@@ -102,6 +103,8 @@ struct segdesc {
 
 #ifndef __ASSEMBLER__
 typedef uint pte_t;
+pte_t* walkpgdir(pde_t *, const void *, int);
+int    pfh(uint);
 
 // Task state segment format
 struct taskstate {

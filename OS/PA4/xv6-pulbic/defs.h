@@ -70,6 +70,12 @@ char*           kalloc(void);
 void            kfree(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
+int             get_block_num();
+void            set_bitmap(int);
+void            clear_bitmap(int);
+void            add_to_lru(pde_t*, char*, char*);
+void            rm_from_lru(char*);
+int             swap_out(void);
 
 // kbd.c
 void            kbdintr(void);

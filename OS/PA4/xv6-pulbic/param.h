@@ -13,4 +13,8 @@
 #define FSSIZE       100000  // size of file system in blocks
 #define SWAPBASE	500
 #define SWAPMAX		(100000 - SWAPBASE)
+#define BSIZE       512
+#define PGSIZE      4096
+#define BM_IDX (SWAPMAX / 8 / (PGSIZE / BSIZE))
+#define BM_SZ  (SWAPMAX / (PGSIZE / BSIZE))
 
