@@ -66,6 +66,7 @@ extern uchar    ioapicid;
 void            ioapicinit(void);
 
 // kalloc.c
+typedef uint pte_t;
 char*           kalloc(void);
 void            kfree(char*);
 void            kinit1(void*, void*);
@@ -76,6 +77,9 @@ void            clear_bitmap(int);
 void            add_to_lru(pde_t*, char*, char*);
 void            rm_from_lru(char*);
 int             swap_out(void);
+int             swap_in(uint);
+pte_t*          walkpgdir(pde_t *, const void *, int);
+
 
 // kbd.c
 void            kbdintr(void);

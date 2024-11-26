@@ -8,6 +8,8 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "spinlock.h"
+#include "fs.h"
+#include "proc.h"
 
 void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
@@ -26,7 +28,6 @@ struct {
 struct {
   struct spinlock lock;
   char* bitmap;
-  int num_free_blocks;
 } swap_space;
 
 struct page pages[PHYSTOP/PGSIZE];
@@ -34,6 +35,7 @@ struct page *page_lru_head;
 struct spinlock page_lock;
 int num_free_pages;
 int num_lru_pages;
+int num_free_blocks = BM_SZ;
 
 // Initialization happens in two phases.
 // 1. main() calls kinit1() while still using entrypgdir to place just
@@ -63,13 +65,12 @@ kinit2(void *vstart, void *vend)
 
   initlock(&swap_space.lock, "swap_space");
   swap_space.bitmap = kalloc();
-  swap_space.num_free_blocks = BM_SZ;
+  memset(swap_space.bitmap, 0, PGSIZE);
 
   initlock(&page_lock, "page_lock");
   num_lru_pages = 0;
   page_lru_head = 0;
 
-  memset(swap_space.bitmap, 0, PGSIZE);
 }
 
 void
@@ -123,7 +124,6 @@ try_again:
       goto try_again;
     }
     else {
-      cprintf("kalloc : Out of memory\n");
       return 0;
     }
   }
@@ -138,8 +138,7 @@ try_again:
 int
 get_block_num() 
 {
-  if (swap_space.num_free_blocks == 0) {
-    cprintf("get_block_num : No free blocks\n");
+  if (num_free_blocks == 0) {
     return -1;
   }
 
@@ -153,7 +152,7 @@ get_block_num()
         if (!(byte & (1 << shift))) {
           int blkno = idx * 8 + shift; 
           swap_space.bitmap[idx] |= (1 << shift);  
-          swap_space.num_free_blocks--; 
+          num_free_blocks--; 
           release(&swap_space.lock);  
           return blkno;  
         }
@@ -170,8 +169,8 @@ set_bitmap(int blkno)
 {
   acquire(&swap_space.lock);    
   swap_space.bitmap[blkno / 8] |= (1 << (blkno % 8));
-  if (swap_space.num_free_blocks > 0) {
-    swap_space.num_free_blocks--;
+  if (num_free_blocks > 0) {
+    num_free_blocks--;
   }
   release(&swap_space.lock);
 }
@@ -180,7 +179,7 @@ void
 clear_bitmap(int blkno)
 {
   acquire(&swap_space.lock);
-  swap_space.num_free_blocks++;
+  num_free_blocks++;
   swap_space.bitmap[blkno / 8] &= ~(1 << (blkno % 8));
   release(&swap_space.lock);
 }
@@ -251,7 +250,6 @@ int
 swap_out(void)
 {
   if (page_lru_head == 0 || num_lru_pages == 0) {
-    cprintf("swap_out : No pages to swap out\n");
     return 0;
   }
 
@@ -281,7 +279,6 @@ swap_out(void)
 
   int blkno = get_block_num();
   if (blkno == -1) {
-    cprintf("swap_out : No free blocks\n");
     return 0;
   }
 
@@ -298,4 +295,32 @@ swap_out(void)
   kfree(addr);  
 
   return 1;  
+}
+
+int 
+swap_in(uint addr) 
+{
+    pte_t *pte = walkpgdir(myproc()->pgdir, (void *)PGROUNDDOWN(addr), 0);
+
+    char *mem = kalloc();
+    if(mem == 0) {
+        return -1;
+    }
+
+    int blkno = *pte >> 12;
+
+    if (blkno < 0 || blkno >= (SWAPMAX / (PGSIZE / BSIZE))) {
+        return -1;
+    }
+
+    swapread((char *)mem, blkno);
+    clear_bitmap(blkno);
+
+    add_to_lru(myproc()->pgdir, mem, (char *)PGROUNDDOWN(addr));
+
+    *pte = (*pte & ~0xFFF) | V2P(mem);
+    *pte |= PTE_P;
+    *pte |= PTE_A;
+
+    return 1;
 }

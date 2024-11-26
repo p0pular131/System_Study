@@ -104,7 +104,6 @@ struct segdesc {
 #ifndef __ASSEMBLER__
 typedef uint pte_t;
 pte_t* walkpgdir(pde_t *, const void *, int);
-int    pfh(uint);
 
 // Task state segment format
 struct taskstate {
