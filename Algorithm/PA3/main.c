@@ -134,18 +134,17 @@ Node* huffman_encoding(Node** pq) {
 }
 
 void save_tree(FILE* output, Node* root) {
-    if (root == NULL) {
-        printf("Error: root is NULL\n");
-        return;
-    }
+    // tree를 .json형식으로 저장
+    if (root == NULL) return;
+
     if (root->left == NULL && root->right == NULL) {
-        fprintf(output, "%c", root->character);
+        fprintf(output, "{\"char\":\"%c\"}", root->character);
     } else {
-        fprintf(output, "(");
+        fprintf(output, "{\"left\":");
         save_tree(output, root->left);
-        fprintf(output, ",");
+        fprintf(output, ",\"right\":");
         save_tree(output, root->right);
-        fprintf(output, ")");
+        fprintf(output, "}");
     }
 }
 
@@ -222,48 +221,100 @@ void free_tree(Node* root) {
 
 Node* reconstruct_tree(FILE* input) {
     char ch;
-    if (fscanf(input, "%c", &ch) != 1) return NULL;
-    if (ch == '(') {
-        Node* node = (Node*)malloc(sizeof(Node));
-        node->character = 0; 
-        node->left = reconstruct_tree(input);
-        fscanf(input, ","); 
-        node->right = reconstruct_tree(input);
-        fscanf(input, ")"); 
-        return node;
-    } else {
-        Node* node = (Node*)malloc(sizeof(Node));
+    if (fscanf(input, " { \"") != 0) return NULL; // JSON 시작
+
+    Node* node = (Node*)malloc(sizeof(Node));
+
+    if (fscanf(input, "char\":\"%c\" }", &ch) == 1) {
+        // 리프 노드
         node->character = ch;
         node->left = node->right = NULL;
-        return node;
+    } 
+    else if (fscanf(input, "left\":") == 0) {
+        // 내부 노드
+        node->character = 0;
+        node->left = reconstruct_tree(input);
+        fscanf(input, ",\"right\":");
+        node->right = reconstruct_tree(input);
+        fscanf(input, "}");
     }
+
+    return node;
 }
 
 void move_FP_secondline(FILE* input) {
     // 파일 포인터를 두 번째 줄로 이동
     fseek(input, 0, SEEK_SET); // 먼저 포인터 위치를 처음으로 이동
-    char buffer[1024]; // 한 줄 읽을 버퍼
+    char buffer[100000]; // 한 줄 읽을 버퍼
     if (fgets(buffer, sizeof(buffer), input) == NULL) {
         printf("Error: Failed to read the first line.\n");
         exit(1);
     }
 }
 
+Node* parse_json_tree(FILE* input) {
+    char ch;
+    if (fscanf(input, " { \"%c", &ch) != 1) return NULL;
+
+    if (ch == 'c') {
+        // 리프 노드 {"char":"<문자>"}
+        char character;
+        fscanf(input, "har\":\"%c\" }", &character);
+
+        Node* node = (Node*)malloc(sizeof(Node));
+        if (node == NULL) {
+            printf("Error: Memory allocation failed\n");
+            exit(1);
+        }
+        node->character = character;
+        node->left = node->right = NULL;
+        return node;
+    } 
+    else if (ch == 'l') {
+        // 내부 노드 {"left": ... , "right": ... }
+        Node* node = (Node*)malloc(sizeof(Node));
+        if (node == NULL) {
+            printf("Error: Memory allocation failed\n");
+            exit(1);
+        }
+        node->character = 0; // 내부 노드는 문자가 없음
+
+        fscanf(input, "eft\":");
+        node->left = parse_json_tree(input);
+
+        fscanf(input, ",\"right\":");
+        node->right = parse_json_tree(input);
+
+        // 내부 노드 종료
+        fscanf(input, " }");
+
+        return node;
+    }
+
+    return NULL;
+}
+
 void decode_huff(FILE* input, FILE* output, Node* root) {
-    Node* current = root;
+    if (root == NULL) {
+        printf("Error: Huffman tree root is NULL\n");
+        return;
+    }
+
     char bit;
+    Node* current = root;
+
     while ((bit = fgetc(input)) != EOF) {
         if (bit == '0') {
             current = current->left;
         } else if (bit == '1') {
             current = current->right;
         } else if (bit == '\n') {
-            break; // 이진 데이터 끝에서 탈출
+            break;
         }
+
         if (current->left == NULL && current->right == NULL) {
-            // 리프 노드에 도달하면 문자를 출력
-            fprintf(output, "%c", current->character);
-            current = root;
+            fprintf(output, "%c", current->character); 
+            current = root; 
         }
     }
 }
@@ -317,7 +368,7 @@ int main() {
     char* asc2huff_table[ASCLEN] = {0};
     char asc2huff[MAXBITLEN]; 
 
-    Node* root2 = reconstruct_tree(input2);
+    Node* root2 = parse_json_tree(input2);
     generate_huffman_code(root2,asc2huff,0,asc2huff_table);
     save_output2(input2,output2,root2,asc2huff_table);
 
