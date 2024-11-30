@@ -151,7 +151,8 @@ void save_tree(FILE* output, Node* root) {
 
     if (root->left == NULL && root->right == NULL) {
         fprintf(output, "{\"char\":\"%c\"}", root->character);
-    } else {
+    } 
+    else {
         fprintf(output, "{\"left\":");
         save_tree(output, root->left);
         fprintf(output, ",\"right\":");
@@ -231,29 +232,6 @@ void free_tree(Node* root) {
     free(root);
 }
 
-Node* reconstruct_tree(FILE* input) {
-    char ch;
-    if (fscanf(input, " { \"") != 0) return NULL; // JSON 시작
-
-    Node* node = (Node*)malloc(sizeof(Node));
-
-    if (fscanf(input, "char\":\"%c\" }", &ch) == 1) {
-        // 리프 노드
-        node->character = ch;
-        node->left = node->right = NULL;
-    } 
-    else if (fscanf(input, "left\":") == 0) {
-        // 내부 노드
-        node->character = 0;
-        node->left = reconstruct_tree(input);
-        fscanf(input, ",\"right\":");
-        node->right = reconstruct_tree(input);
-        fscanf(input, "}");
-    }
-
-    return node;
-}
-
 void move_FP_secondline(FILE* input) {
     // 파일 포인터를 두 번째 줄로 이동
     fseek(input, 0, SEEK_SET); // 먼저 포인터 위치를 처음으로 이동
@@ -317,9 +295,11 @@ void decode_huff(FILE* input, FILE* output, Node* root) {
     while ((bit = fgetc(input)) != EOF) {
         if (bit == '0') {
             current = current->left;
-        } else if (bit == '1') {
+        } 
+        else if (bit == '1') {
             current = current->right;
-        } else if (bit == '\n') {
+        } 
+        else if (bit == '\n') {
             break;
         }
 
