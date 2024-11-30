@@ -7,9 +7,9 @@
 #pragma warning(disable : 4996)
 
 #define ASCLEN 128
-#define MAXBITLEN 128
 int cntASC2[ASCLEN]; // 각 char가 나온 횟수를 count하는 table
 int total_cnt = 0; // 총 node의 개수
+int tree_depth;
 
 typedef unsigned int uint;
 
@@ -23,7 +23,9 @@ void input_handler(FILE* input_file) {
     char ch;
     // 파일에서 문자 하나씩 읽기
     while ((ch = fgetc(input_file)) != EOF) {
-        if (ch >= 0 && ch < ASCLEN) cntASC2[(int)ch]++;
+        if (ch >= 0 && ch < ASCLEN) {
+            cntASC2[(int)ch]++;
+        }
     }
 }
 
@@ -133,6 +135,16 @@ Node* huffman_encoding(Node** pq) {
     return pq[0];
 }
 
+int calculate_depth(Node* root) {
+    if (root == NULL) {
+        return 0; 
+    }
+    int left_depth = calculate_depth(root->left);
+    int right_depth = calculate_depth(root->right);
+
+    return 1 + ((left_depth > right_depth) ? left_depth : right_depth);
+}
+
 void save_tree(FILE* output, Node* root) {
     // tree를 .json형식으로 저장
     if (root == NULL) return;
@@ -175,7 +187,7 @@ void save_bin(FILE* input_file, FILE* output, Node* root) {
         return;
     }
     char* huffcode_table[ASCLEN] = {0}; // 각 char에 대한 huffman code를 저장하는 table
-    char huffcode[MAXBITLEN];
+    char huffcode[tree_depth];
     generate_huffman_code(root, huffcode, 0, huffcode_table);
 
     fseek(input_file, 0, SEEK_SET); // 파일 포인터를 처음으로 이동
@@ -198,7 +210,7 @@ void save_output(FILE* output, Node* root, FILE* input_file) {
         return;
     }
     char* huffcode_table[ASCLEN] = {0};
-    char huffcode[MAXBITLEN];
+    char huffcode[tree_depth];
     generate_huffman_code(root, huffcode, 0, huffcode_table);
 
     for(int i=0;i<ASCLEN;i++) {
@@ -245,10 +257,9 @@ Node* reconstruct_tree(FILE* input) {
 void move_FP_secondline(FILE* input) {
     // 파일 포인터를 두 번째 줄로 이동
     fseek(input, 0, SEEK_SET); // 먼저 포인터 위치를 처음으로 이동
-    char buffer[100000]; // 한 줄 읽을 버퍼
-    if (fgets(buffer, sizeof(buffer), input) == NULL) {
-        printf("Error: Failed to read the first line.\n");
-        exit(1);
+    char buffer[1024]; // 임시 버퍼 크기
+    while (fgets(buffer, sizeof(buffer), input)) {
+        if (strchr(buffer, '\n')) break;
     }
 }
 
@@ -352,6 +363,7 @@ int main() {
     // }
 
     Node* root = huffman_encoding(pq); // Huffman Tree 생성
+    tree_depth = calculate_depth(root); // Tree의 depth 계산
     save_tree(output1,root); // tree를 (())형식으로 저장 
     fprintf(output1, "\n");
     save_bin(input_file,output1,root);  // encoding 결과 압축된 binary 저장.
@@ -366,9 +378,10 @@ int main() {
     FILE* input2 = fopen("hw3_output1.txt","r");
     FILE* output2 = fopen("hw3_output2.txt","w");
     char* asc2huff_table[ASCLEN] = {0};
-    char asc2huff[MAXBITLEN]; 
+    char asc2huff[tree_depth]; 
 
     Node* root2 = parse_json_tree(input2);
+    tree_depth = calculate_depth(root2);
     generate_huffman_code(root2,asc2huff,0,asc2huff_table);
     save_output2(input2,output2,root2,asc2huff_table);
 
