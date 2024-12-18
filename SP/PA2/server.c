@@ -9,14 +9,6 @@
 #include <sys/types.h>
 #include <signal.h>
 
-/*
-    12.11 : 아직 확인해야할 사항들
-
-    1. Termination 기능 재확인
-    2. client가 많을 때 concurrency 문제 없는지 확인
-    3. user id에 따른 각종 operation 권환 조건 확인
-*/
-
 #define MAX_CLIENTS 1024
 #define MAX_SEATS 256
 #define INVALID_USER -1
@@ -54,7 +46,7 @@ void cleanup_server() {
         pthread_mutex_destroy(&seat_mutex[i]);
     }
     pthread_mutex_destroy(&user_mutex);
-    printf("Now terminate server.\n");
+    printf("Now server is terminated.\n");
 }
 
 void *client_handler(void *arg) {
@@ -87,7 +79,6 @@ void *client_handler(void *arg) {
                         user_logged_in[q.user] = 1;
                         response = 1;
                         curr_user = q.user;
-                        printf("Register user %d password %d\n", q.user, q.data);
                     }
                     else if(user_password[q.user] == q.data) {
                         user_logged_in[q.user] = 1;
@@ -161,11 +152,10 @@ void *client_handler(void *arg) {
             }
             case 0: { // Terminate
                 if(q.action == 0 && q.user == 0 && q.data == 0) {
-                    // 모든 데이터가 0일때만 서버 종료
+                    // 모든 데이터가 0일때만 client 종료
                     send(client_socket, seat_array, sizeof(seat_array), 0);
-                    cleanup_server();
                     close(client_socket);
-                    exit(0);
+                    return NULL;
                 }
                 else {
                     response = -1;

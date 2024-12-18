@@ -11,7 +11,7 @@ typedef struct _query {
     int seat;
 } query;
 
-#define MAX_CLIENTS 100  // 생성할 클라이언트 수
+#define MAX_CLIENTS 1024  // 생성할 클라이언트 수
 #define SERVER_IP "127.0.0.1"
 #define SERVER_PORT 8080
 
